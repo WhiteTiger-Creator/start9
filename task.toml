@@ -5,6 +5,11 @@ name = "permission-resolution-engine"
 author_name = "Jonathan"
 author_email = "jtolbert0175@gmail.com"
 difficulty_explanation = '''
+The graded directory resolves to hundreds of thousands of decisions across a 42,000-node resource
+tree, and the board's inherited-reach figure must be carried down that tree in a single walk: rebuilding
+each node's principal set from every grant is the node count times the grant count and cannot meet the
+90-second wall-clock budget the contract states.
+
 Restoring this evaluator is the work of an identity and access-management or access-platform
 engineer running a permission recertification, and it is a genuinely dependent chain rather than a
 single repair. The role bindings are addressed to group handles, several of which nest other

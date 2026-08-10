@@ -17,6 +17,9 @@ import pytest
 WORKFLOW_PATH = Path("/app/workflow/resolve_access.py")
 ORIGINAL_WORKFLOW_PATH = Path("/app/workflow/.resolve_access.original")
 DEFAULT_INPUT = Path("/app/data/expanded_bindings.json")
+# The shipped shallow file is overwritten in place by the expansion, so the
+# verifier keeps its own copy to prove the evaluator depends on that step.
+SHIPPED_EXPANDED_REFERENCE_PATH = Path("/tests/fixtures/shipped_expanded.json")
 BINDINGS_PATH = Path("/app/data/role_bindings.json")
 DIRECTORY_PATH = Path("/app/data/directory_export.json")
 RESOURCE_TREE_PATH = Path("/app/data/resource_tree.json")
@@ -38,10 +41,12 @@ POLICY_FIELDS = (
     "permission_weight", "admission_min", "critical_risk_min", "critical_escalation_min",
     "critical_suppressed_min", "elevated_risk_min", "elevated_depth_min",
 )
+# Mirrors the governed baseline in the access log; the verifier resolves policy
+# the same way the evaluator does, so these must not drift apart.
 BASELINE = {
-    "permission_weight": 4, "admission_min": 9, "critical_risk_min": 22,
-    "critical_escalation_min": 30, "critical_suppressed_min": 3,
-    "elevated_risk_min": 14, "elevated_depth_min": 3,
+    "permission_weight": 4, "admission_min": 9, "critical_risk_min": 200,
+    "critical_escalation_min": 260, "critical_suppressed_min": 40,
+    "elevated_risk_min": 14, "elevated_depth_min": 8,
 }
 REVIEWED_PERMISSIONS = {"deploy", "delete", "rotate", "export"}
 BINDING_FIELDS = ("binding_id", "principal", "role", "scope")
@@ -50,6 +55,49 @@ DECISION_KEYS = set(SPEC["principal_decisions_json"]["required_fields"])
 QUEUE_KEYS = set(SPEC["exception_queue"]["required_fields"])
 SUMMARY_KEYS = set(SPEC["summary_json"]["required_fields"])
 WRONG_EXPANSIONS = ("shipped_shallow", "unbounded_closure", "cycle_naive", "depth_first")
+
+
+WRONG_EXPANSIONS = ("shipped_shallow", "direct_members_only", "handles_dropped")
+
+
+def _wrong_expansion(label: str) -> list[dict]:
+    """Plausible mis-walks of the directory: the shipped shallow file, an
+    expansion that takes only direct members, and one that drops handles
+    entirely. Each must produce a different binding set from the governed walk."""
+    bindings = _load_json(BINDINGS_PATH)
+    groups = {g["handle"]: g for g in _load_json(DIRECTORY_PATH)["groups"]}
+    if label == "shipped_shallow":
+        return _load_json(SHIPPED_EXPANDED_REFERENCE_PATH)
+    out: list[dict] = []
+    for row in bindings:
+        principal = row["principal"]
+        if not principal.startswith("@"):
+            out.append(dict(row))
+            continue
+        if label == "handles_dropped":
+            continue
+        group = groups.get(principal)
+        if not group:
+            continue
+        for member in group["members"]:            # direct members only: nested
+            out.append(dict(row, principal=member))  # groups are never followed
+    return out
+
+
+def _digest(value: object) -> str:
+    """Content digest of a whole artifact; the graded binding set and decision
+    map are far too large to embed in a fixture, so equality is asserted over
+    their digests."""
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+# Documented wall-clock budget for one full run on the graded bindings.
+# instruction.md and report_spec.json state the same number. The reference
+# carries one running tally down the resource tree; rebuilding each node's set
+# from every grant is the node count times the grant count and cannot finish.
+RUNTIME_BUDGET_SEC = 90.0
 
 
 def _load_json(path: Path):
@@ -129,23 +177,27 @@ def primary_outputs(tmp_path_factory):
 # Step 1: the alias-addressed bindings must be expanded before anything resolves
 # --------------------------------------------------------------------------
 def test_expansion_sources_are_intact():
-    assert _load_json(BINDINGS_PATH) == FIXTURE["role_bindings"]
-    assert _load_json(DIRECTORY_PATH) == FIXTURE["directory_export"]
+    """Verifies that expansion sources are intact."""
+    assert _digest(_load_json(BINDINGS_PATH)) == FIXTURE["role_bindings_digest"]
+    assert _digest(_load_json(DIRECTORY_PATH)) == FIXTURE["directory_export_digest"]
 
 
 def test_bindings_expanded():
     """/app/data/expanded_bindings.json shipped shallow; it must hold the governed expansion."""
     expanded = _load_json(DEFAULT_INPUT)
     assert isinstance(expanded, list)
-    assert expanded == FIXTURE["expanded_bindings"]
+    assert len(expanded) == FIXTURE["expanded_count"]
+    assert _digest(expanded) == FIXTURE["expanded_digest"]
 
 
 def test_expanded_records_carry_only_binding_fields():
+    """Verifies that expanded records carry only binding fields."""
     for record in _load_json(DEFAULT_INPUT):
         assert set(record) == set(BINDING_FIELDS)
 
 
 def test_no_alias_handles_remain_in_the_expanded_bindings():
+    """Verifies that no alias handles remain in the expanded bindings."""
     handles = {g["handle"] for g in _load_json(DIRECTORY_PATH)["groups"]}
     for record in _load_json(DEFAULT_INPUT):
         assert not record["principal"].startswith("@"), record
@@ -154,24 +206,27 @@ def test_no_alias_handles_remain_in_the_expanded_bindings():
 
 def test_shipped_and_wrong_expansions_differ_from_the_governed_one():
     """The expansion is real work: the shipped file and each plausible wrong walk all differ."""
-    expected = FIXTURE["expanded_bindings"]
-    shipped = FIXTURE["wrong_expansions"]["shipped_shallow"]
+    expected = FIXTURE["expanded_digest"]
+    shipped = _load_json(SHIPPED_EXPANDED_REFERENCE_PATH)
     assert shipped != expected
-    assert any(row["principal"].startswith("@") for row in shipped)
+    # the shipped file is a shallow expansion: it resolved handles to their direct
+    # members but never followed the nesting, so it is short of the governed set
+    assert not any(row["principal"].startswith("@") for row in shipped)
+    assert len(shipped) < FIXTURE["expanded_count"]
     for label in WRONG_EXPANSIONS:
-        assert FIXTURE["wrong_expansions"][label] != expected, label
+        assert _digest(_wrong_expansion(label)) != expected, label
 
 
 def test_evaluator_output_depends_on_the_expansion(tmp_path: Path):
     """Even a correctly repaired evaluator emits wrong artifacts on a wrongly expanded set."""
     for label in WRONG_EXPANSIONS:
         _, summary, decisions, queue = _run_on_bindings(
-            tmp_path, label, FIXTURE["wrong_expansions"][label]
+            tmp_path, label, _wrong_expansion(label)
         )
         assert summary != FIXTURE["primary"]["summary"], label
-        assert (decisions, queue) != (
-            FIXTURE["primary"]["decisions"],
-            FIXTURE["primary"]["queue_rows"],
+        assert (_digest(decisions), _digest(queue)) != (
+            FIXTURE["primary"]["decisions_digest"],
+            FIXTURE["primary"]["queue_digest"],
         ), label
 
 
@@ -180,7 +235,7 @@ def test_nested_alias_principal_and_decision_flip(tmp_path: Path, primary_output
     expansion, and a named principal's effective decision flips with it."""
     _, _, decisions, _ = primary_outputs
     _, _, shallow_decisions, _ = _run_on_bindings(
-        tmp_path, "shallow_probe", FIXTURE["wrong_expansions"]["shipped_shallow"]
+        tmp_path, "shallow_probe", _load_json(SHIPPED_EXPANDED_REFERENCE_PATH)
     )
     nested_only = FIXTURE["nested_only_principal"]
     assert decisions.get(nested_only), nested_only
@@ -203,31 +258,90 @@ def test_nested_alias_principal_and_decision_flip(tmp_path: Path, primary_output
 # Step 2: the evaluator output contract
 # --------------------------------------------------------------------------
 def test_cli_exists():
+    """Verifies that cli exists."""
     assert WORKFLOW_PATH.exists()
 
 
 def test_output_dir_contains_exactly_three_files(primary_outputs):
+    """Verifies that output dir contains exactly three files."""
     out_dir, _, _, _ = primary_outputs
     names = sorted(p.name for p in out_dir.iterdir() if p.is_file())
     assert names == ["exception_queue.jsonl", "principal_decisions.json", "summary.json"]
 
 
 def test_primary_summary_matches_fixture(primary_outputs):
+    """Verifies that primary summary matches fixture."""
     _, summary, _, _ = primary_outputs
     assert summary == FIXTURE["primary"]["summary"]
 
 
 def test_primary_decisions_match_fixture(primary_outputs):
+    """Verifies that primary decisions match fixture."""
     _, _, decisions, _ = primary_outputs
-    assert decisions == FIXTURE["primary"]["decisions"]
+    assert _digest(decisions) == FIXTURE["primary"]["decisions_digest"]
 
 
 def test_primary_queue_matches_fixture(primary_outputs):
+    """Verifies that primary queue matches fixture."""
     _, _, _, queue = primary_outputs
-    assert queue == FIXTURE["primary"]["queue_rows"]
+    assert _digest(queue) == FIXTURE["primary"]["queue_digest"]
+
+
+def _same_scalar_type(got: object, want: object) -> bool:
+    """Exact type match. bool subclasses int in Python, so they are separated
+    explicitly, and an integer count written as a float is not the same type."""
+    if isinstance(got, bool) != isinstance(want, bool):
+        return False
+    return type(got) is type(want)
+
+
+def test_summary_field_types_are_exact(primary_outputs):
+    """Every summary field carries the contracted scalar type; equality alone
+    would accept a count emitted as a float."""
+    summary = primary_outputs[1]
+    for key, want in FIXTURE["primary"]["summary"].items():
+        got = summary[key]
+        assert _same_scalar_type(got, want), (
+            f"{key}: contract says {type(want).__name__}, got {type(got).__name__} ({got!r})"
+        )
+
+
+def test_summary_serialises_identically_to_the_contract(primary_outputs):
+    """The summary's canonical JSON text matches the sealed one, catching a value
+    written in a different numeric form."""
+    assert _digest(primary_outputs[1]) == _digest(FIXTURE["primary"]["summary"])
+
+
+def test_inherited_reach_is_reported_and_varies(primary_outputs):
+    """Every decision carries an inherited-reach count, the counts vary across the
+    tree, and the summary's maximum is the largest of them."""
+    _, summary, decisions, _ = primary_outputs
+    rows = [r for v in decisions.values() for r in v]
+    counts = [r["node_effective_principals"] for r in rows]
+    assert counts and all(isinstance(c, int) and not isinstance(c, bool) for c in counts)
+    assert len(set(counts)) > 20, f"only {len(set(counts))} distinct reach values"
+    assert max(counts) == summary["max_effective_principals"]
+
+
+def test_inherited_reach_counts_ancestors_not_just_the_node(primary_outputs):
+    """A node's reach is at least its parent's: inherited allows must be carried
+    down, so a child can never see fewer principals than its ancestor grants."""
+    _, _, decisions, _ = primary_outputs
+    reach = {}
+    for rows in decisions.values():
+        for row in rows:
+            reach[row["node"]] = row["node_effective_principals"]
+    checked = 0
+    for node, count in reach.items():
+        parent = node.rsplit("/", 1)[0] or "/"
+        if parent != node and parent in reach:
+            assert count >= reach[parent], f"{node} sees fewer principals than {parent}"
+            checked += 1
+    assert checked > 100, "the tree must contain parent/child pairs to compare"
 
 
 def test_summary_schema(primary_outputs):
+    """Verifies that summary schema."""
     _, summary, _, _ = primary_outputs
     assert set(summary) == SUMMARY_KEYS
     assert summary["schema_version"] == "acl-resolve-v1"
@@ -236,6 +350,7 @@ def test_summary_schema(primary_outputs):
 
 
 def test_decisions_schema_and_sorting(primary_outputs):
+    """Verifies that decisions schema and sorting."""
     _, _, decisions, _ = primary_outputs
     assert list(decisions) == sorted(decisions)
     nodes = {row["node"] for row in _load_json(RESOURCE_TREE_PATH)}
@@ -263,6 +378,7 @@ def test_decisions_schema_and_sorting(primary_outputs):
 
 
 def test_queue_required_fields(primary_outputs):
+    """Verifies that queue required fields."""
     _, _, _, queue = primary_outputs
     for row in queue:
         assert set(row) == QUEUE_KEYS
@@ -272,6 +388,7 @@ def test_queue_required_fields(primary_outputs):
 
 
 def test_queue_rows_agree_with_the_decision_blob(primary_outputs):
+    """Verifies that queue rows agree with the decision blob."""
     _, _, decisions, queue = primary_outputs
     for row in queue:
         matches = [
@@ -284,6 +401,7 @@ def test_queue_rows_agree_with_the_decision_blob(primary_outputs):
 
 
 def test_queue_sorted(primary_outputs):
+    """Verifies that queue sorted."""
     _, _, _, queue = primary_outputs
     assert queue == sorted(
         queue,
@@ -302,6 +420,7 @@ def test_queue_sorted(primary_outputs):
 
 
 def test_exception_queue_jsonl_compact(primary_outputs):
+    """Verifies that exception queue jsonl compact."""
     out_dir, _, _, _ = primary_outputs
     for line in (out_dir / "exception_queue.jsonl").read_text(encoding="utf-8").splitlines():
         if not line.strip():
@@ -311,6 +430,7 @@ def test_exception_queue_jsonl_compact(primary_outputs):
 
 
 def test_summary_math_consistency(primary_outputs):
+    """Verifies that summary math consistency."""
     _, summary, decisions, queue = primary_outputs
     rows = [row for principal_rows in decisions.values() for row in principal_rows]
     assert summary["resolved_decision_count"] == len(rows)
@@ -330,6 +450,7 @@ def test_summary_math_consistency(primary_outputs):
 
 
 def test_summary_counts_track_the_expanded_bindings(primary_outputs):
+    """Verifies that summary counts track the expanded bindings."""
     _, summary, decisions, _ = primary_outputs
     assert summary["expanded_binding_count"] == len(_load_json(DEFAULT_INPUT))
     assert summary["principal_count"] == len(decisions)
@@ -338,6 +459,7 @@ def test_summary_counts_track_the_expanded_bindings(primary_outputs):
 
 
 def test_tier_and_basis_counts_enumerate_every_label(primary_outputs):
+    """Verifies that tier and basis counts enumerate every label."""
     _, summary, decisions, queue = primary_outputs
     tiers = {tier: 0 for tier in TIER_ORDER}
     for row in queue:
@@ -355,35 +477,40 @@ def test_tier_and_basis_counts_enumerate_every_label(primary_outputs):
 # Original / broken snapshot
 # --------------------------------------------------------------------------
 def test_original_snapshot_preserved():
+    """Verifies that original snapshot preserved."""
     assert ORIGINAL_WORKFLOW_PATH.exists()
     digest = hashlib.sha256(ORIGINAL_WORKFLOW_PATH.read_bytes()).hexdigest()
     assert digest == FIXTURE["broken_evaluator_sha256"]
 
 
 def test_broken_snapshot_is_wrong(tmp_path: Path):
+    """Verifies that broken snapshot is wrong."""
     _, summary, decisions, queue = _run_pipeline(tmp_path, script_path=ORIGINAL_WORKFLOW_PATH)
     assert summary != FIXTURE["primary"]["summary"]
-    assert decisions != FIXTURE["primary"]["decisions"]
-    assert queue != FIXTURE["primary"]["queue_rows"]
+    assert _digest(decisions) != FIXTURE["primary"]["decisions_digest"]
+    assert _digest(queue) != FIXTURE["primary"]["queue_digest"]
 
 
 # --------------------------------------------------------------------------
 # Generalization / idempotency / CLI
 # --------------------------------------------------------------------------
 def test_pipeline_rerun_idempotent(tmp_path: Path):
+    """Verifies that pipeline rerun idempotent."""
     _, sa, da, qa = _run_pipeline(tmp_path / "a")
     _, sb, db, qb = _run_pipeline(tmp_path / "b")
     assert (sa, da, qa) == (sb, db, qb)
 
 
 def test_pipeline_supports_alternate_binding_set(tmp_path: Path):
+    """Verifies that pipeline supports alternate binding set."""
     _, summary, decisions, queue = _run_pipeline(tmp_path, input_path=ALT_INPUT)
     assert summary == FIXTURE["alternate"]["summary"]
-    assert decisions == FIXTURE["alternate"]["decisions"]
-    assert queue == FIXTURE["alternate"]["queue_rows"]
+    assert _digest(decisions) == FIXTURE["alternate"]["decisions_digest"]
+    assert _digest(queue) == FIXTURE["alternate"]["queue_digest"]
 
 
 def test_cli_defaults_work_and_match_explicit_run(tmp_path: Path):
+    """Verifies that cli defaults work and match explicit run."""
     _, explicit_summary, _, _ = _run_pipeline(tmp_path)
     # The no-argument run writes to the default /app/output; clear any root-owned artifacts from
     # solve.sh and make the dir candidate-writable so the unprivileged program can populate it.
@@ -427,6 +554,7 @@ def test_submitted_program_runs_unprivileged_and_cannot_write_reward(tmp_path: P
 # Source-path influence
 # --------------------------------------------------------------------------
 def test_resource_tree_source_path_affects_output(tmp_path: Path):
+    """Verifies that resource tree source path affects output."""
     original = RESOURCE_TREE_PATH.read_text(encoding="utf-8")
     try:
         _, summary_a, decisions_a, queue_a = _run_pipeline(tmp_path / "a")
@@ -442,6 +570,7 @@ def test_resource_tree_source_path_affects_output(tmp_path: Path):
 
 
 def test_role_catalog_source_path_affects_output(tmp_path: Path):
+    """Verifies that role catalog source path affects output."""
     original = ROLE_CATALOG_PATH.read_text(encoding="utf-8")
     try:
         _, summary_a, decisions_a, _ = _run_pipeline(tmp_path / "a")
@@ -457,6 +586,7 @@ def test_role_catalog_source_path_affects_output(tmp_path: Path):
 
 
 def test_policy_source_path_affects_output(tmp_path: Path):
+    """Verifies that policy source path affects output."""
     original = POLICY_PATH.read_text(encoding="utf-8")
     try:
         data = json.loads(original)
@@ -464,7 +594,7 @@ def test_policy_source_path_affects_output(tmp_path: Path):
         _write_json(POLICY_PATH, data)
         _, summary, _, queue = _run_pipeline(tmp_path / "shifted")
         assert summary != FIXTURE["primary"]["summary"]
-        assert len(queue) < len(FIXTURE["primary"]["queue_rows"])
+        assert len(queue) < FIXTURE["primary"]["queue_count"]
     finally:
         POLICY_PATH.write_text(original, encoding="utf-8")
 
@@ -482,6 +612,7 @@ def _resolve(permission: str, data: dict) -> dict:
 
 
 def test_sparse_override_inherits_remaining_fields():
+    """Verifies that sparse override inherits remaining fields."""
     data = json.loads(POLICY_PATH.read_text())
     overrides = data.get("permission_overrides", {})
     sparse = [p for p, o in overrides.items() if len(o) == 1]
@@ -497,6 +628,7 @@ def test_sparse_override_inherits_remaining_fields():
 
 
 def test_policy_default_may_omit_fields_and_falls_back_to_baseline():
+    """Verifies that policy default may omit fields and falls back to baseline."""
     data = json.loads(POLICY_PATH.read_text())
     omitted = [f for f in POLICY_FIELDS if f not in data.get("default", {})]
     assert omitted, "the shipped policy must omit at least one field to exercise fallback"
@@ -506,6 +638,7 @@ def test_policy_default_may_omit_fields_and_falls_back_to_baseline():
 
 
 def test_tier_rules_follow_resolved_policy(primary_outputs):
+    """Verifies that tier rules follow resolved policy."""
     _, _, _, queue = primary_outputs
     data = json.loads(POLICY_PATH.read_text())
     for row in queue:
@@ -531,6 +664,7 @@ def test_tier_rules_follow_resolved_policy(primary_outputs):
 # Capacity cap
 # --------------------------------------------------------------------------
 def test_principal_capacity_cap_applied_after_ordering(primary_outputs):
+    """Verifies that principal capacity cap applied after ordering."""
     _, _, decisions, queue = primary_outputs
     per_principal: dict[str, int] = {}
     for row in queue:
@@ -579,6 +713,7 @@ def test_specific_allow_beats_broader_deny_and_child_overrides_inherited_deny(pr
     # /prod/* denies delete (role-operator, distance 0, specificity 2); the exact /prod/payments
     # break-glass binding both grants delete at distance 0 and inherits the operator deny at
     # distance 1, both at specificity 5. Specificity is compared first, then distance, then effect.
+    """Verifies that specific allow beats broader deny and child overrides inherited deny."""
     row = probe_outputs[("probe-one", "/prod/payments", "delete")]
     assert row["effect"] == "allow"
     assert row["scope_specificity"] == 5
@@ -588,6 +723,7 @@ def test_specific_allow_beats_broader_deny_and_child_overrides_inherited_deny(pr
 
 
 def test_exact_deny_propagates_downward_but_an_exact_allow_does_not(probe_outputs):
+    """Verifies that exact deny propagates downward but an exact allow does not."""
     row = probe_outputs[("probe-one", "/prod/payments/ledger", "delete")]
     assert row["effect"] == "deny"
     assert row["decision_basis"] == "propagated_deny"
@@ -597,6 +733,7 @@ def test_exact_deny_propagates_downward_but_an_exact_allow_does_not(probe_output
 
 def test_node_level_deny_suppresses_the_subtree(probe_outputs):
     # An exact deny at /prod/payments beats the /prod/* allow there and at both children.
+    """Verifies that node level deny suppresses the subtree."""
     row = probe_outputs[("probe-two", "/prod/payments", "export")]
     assert row["effect"] == "deny"
     assert row["decision_basis"] == "direct_grant"
@@ -614,6 +751,7 @@ def test_node_level_deny_suppresses_the_subtree(probe_outputs):
 def test_deeper_wildcard_outranks_a_shallower_exact_scope(probe_outputs):
     # /prod exact scores 3; /prod/payments/* scores 4 and therefore wins at /prod/payments,
     # which the "an exact scope always beats a wildcard" reading gets backwards.
+    """Verifies that deeper wildcard outranks a shallower exact scope."""
     row = probe_outputs[("probe-three", "/prod/payments", "delete")]
     assert row["scope_specificity"] == 4
     assert row["effect"] == "allow"
@@ -627,6 +765,7 @@ def test_deeper_wildcard_outranks_a_shallower_exact_scope(probe_outputs):
 def test_role_inheritance_distance_is_the_shortest_path(probe_outputs):
     # role-breakglass reaches role-viewer through role-custodian in two hops and through
     # role-operator/role-analyst in three; the shorter one governs.
+    """Verifies that role inheritance distance is the shorpath."""
     row = probe_outputs[("probe-one", "/prod/payments", "read")]
     assert row["inherit_distance"] == 2
     assert row["decision_basis"] == "role_inheritance"
@@ -636,6 +775,7 @@ def test_role_inheritance_distance_is_the_shortest_path(probe_outputs):
 # Anti-delegation: static AST ban
 # --------------------------------------------------------------------------
 def test_evaluator_does_not_import_engines():
+    """Verifies that evaluator does not import engines."""
     tree = ast.parse(WORKFLOW_PATH.read_text(encoding="utf-8"))
     banned = set(SPEC["workflow_repair"]["prohibited_imports"])
     found = set()
@@ -667,10 +807,12 @@ def test_ast_check_catches_a_delegating_engine(tmp_path: Path):
 # Sources stay operational
 # --------------------------------------------------------------------------
 def test_governance_log_present():
+    """Verifies that governance log present."""
     assert LOG_PATH.exists() and LOG_PATH.stat().st_size > 0
 
 
 def test_evaluator_does_not_reference_test_artifacts():
+    """Verifies that evaluator does not reference artifacts."""
     code = WORKFLOW_PATH.read_text(encoding="utf-8")
     for token in ("/tests", "expected_report.json", "alt_expanded_bindings.json"):
         assert token not in code

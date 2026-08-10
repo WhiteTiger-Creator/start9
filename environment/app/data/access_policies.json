@@ -2,9 +2,10 @@
   "default": {
     "permission_weight": 4,
     "admission_min": 9,
-    "critical_risk_min": 24,
-    "critical_escalation_min": 34,
-    "elevated_risk_min": 15
+    "critical_risk_min": 200,
+    "critical_escalation_min": 260,
+    "elevated_risk_min": 14,
+    "elevated_depth_min": 8
   },
   "permission_overrides": {
     "delete": {

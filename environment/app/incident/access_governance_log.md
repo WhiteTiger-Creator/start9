@@ -460,7 +460,7 @@ Thread archived; see the #ACL decision entries for anything affecting evaluator 
 
 ### Review entry 2206 — identity (prod) scope
 Access review lead logged a routine observation for identity (prod) during recertification round 2206. A vendor ticket about duplicated group handles in this scope was closed; the duplicates were display names only.
-> **Governance decision (2026-05-18 - #ACL-4150)** Priya: access policy baseline (read from /app/data/access_policies.json at that fixed absolute path; --input never relocates it). Any field the policy file omits keeps its baseline: permission_weight = 4; admission_min = 9; critical_risk_min = 22; critical_escalation_min = 30; critical_suppressed_min = 3; elevated_risk_min = 14; elevated_depth_min = 3
+> **Governance decision (2026-05-18 - #ACL-4150)** Priya: access policy baseline (read from /app/data/access_policies.json at that fixed absolute path; --input never relocates it). Any field the policy file omits keeps its baseline: permission_weight = 4; admission_min = 9; critical_risk_min = 200; critical_escalation_min = 260; critical_suppressed_min = 40; elevated_risk_min = 14; elevated_depth_min = 8
 No evaluator semantics changed in this entry; parameters remain as approved by the governance board.
 
 ### Review entry 2207 — ledger (prod) scope
@@ -550,3 +550,5 @@ No evaluator semantics changed in this entry; parameters remain as approved by t
 ### Review entry 2227 — identity (prod) scope
 Access review lead logged a routine observation for identity (prod) during recertification round 2227. Change-board reviewed stale exception approvals touching this scope; owners were pinged before the next recertification round.
 Spreadsheet exports of this review remain archived and non-authoritative for the JSON evaluator acceptance.
+
+> **Governance decision (2026-06-04 - #ACL-4172)** Lena: inherited reach review, final. Every resolved decision also carries `node_effective_principals`: the number of DISTINCT principals holding an ALLOW at that node once the allows they inherit from its ancestors are counted alongside the ones granted at the node itself. A principal counts once however many ancestors grant it, a deny never contributes, and a node with no allow anywhere on its path counts zero. The summary carries `max_effective_principals` across every decision. This settles the #ACL-4128 draft, which counted only the grants written at the node

@@ -44,11 +44,11 @@ PRINCIPAL_CAP = 3             # #ACL-4146: at most 3 queue rows per principal
 POLICY_BASELINE = {
     "permission_weight": 4,
     "admission_min": 9,
-    "critical_risk_min": 22,
-    "critical_escalation_min": 30,
-    "critical_suppressed_min": 3,
+    "critical_risk_min": 200,
+    "critical_escalation_min": 260,
+    "critical_suppressed_min": 40,
     "elevated_risk_min": 14,
-    "elevated_depth_min": 3,
+    "elevated_depth_min": 8,
 }
 REVIEWED_PERMISSIONS = ("deploy", "delete", "rotate", "export")  # #ACL-4140
 
@@ -96,7 +96,7 @@ def path_depth(path: str) -> int:
 # --------------------------------------------------------------------------
 # Resource tree (#ACL-4101, #ACL-4104)
 # --------------------------------------------------------------------------
-def build_tree(rows: list[dict]) -> tuple[list[str], dict[str, list[str]]]:
+def build_tree(rows: list[dict]) -> tuple[list[str], dict[str, list[str]], dict[str, list[str]]]:
     nodes: list[str] = []
     seen: set[str] = set()
     parent: dict[str, str | None] = {}
@@ -116,7 +116,14 @@ def build_tree(rows: list[dict]) -> tuple[list[str], dict[str, list[str]]]:
             descendants[cursor].append(node)
             cursor = parent.get(cursor)
             guard += 1
-    return sorted(nodes), {node: sorted(kids) for node, kids in descendants.items()}
+    children: dict[str, list[str]] = {node: [] for node in nodes}
+    for node in nodes:
+        par = parent.get(node)
+        if par is not None and par in children:
+            children[par].append(node)
+    return (sorted(nodes),
+            {node: sorted(kids) for node, kids in descendants.items()},
+            {node: sorted(kids) for node, kids in children.items()})
 
 
 # --------------------------------------------------------------------------
@@ -233,6 +240,41 @@ def applicable_rules(
     return table
 
 
+def effective_principal_counts(
+    grants: dict[str, set[str]],
+    children: dict[str, list[str]],
+    roots: list[str],
+) -> dict[str, int]:
+    """#ACL-4172: distinct principals holding an allow at each node once grants
+    inherited from ancestors are counted.
+
+    The walk carries one running tally down the tree, adding a node's own
+    principals on the way in and removing them on the way out, so the whole tree
+    costs one pass. Recomputing a node's set from every grant is the node count
+    times the grant count and cannot meet the runtime budget.
+    """
+    counts: dict[str, int] = {}
+    live: dict[str, int] = {}
+    stack: list[tuple[str, bool]] = [(root, False) for root in reversed(roots)]
+    while stack:
+        node, leaving = stack.pop()
+        own = grants.get(node, ())
+        if leaving:
+            for principal in own:
+                if live[principal] == 1:
+                    del live[principal]
+                else:
+                    live[principal] -= 1
+            continue
+        for principal in own:
+            live[principal] = live.get(principal, 0) + 1
+        counts[node] = len(live)
+        stack.append((node, True))
+        for kid in reversed(children.get(node, ())):
+            stack.append((kid, False))
+    return counts
+
+
 def precedence_key(rule: dict) -> tuple:
     # #ACL-4110, strictly in sequence: greater specificity, then smaller
     # inherit distance, then deny before allow, then binding_id, then role.
@@ -295,6 +337,7 @@ def assign_tier(decision: dict, policy: dict) -> str:
 
 DECISION_FIELDS = (
     "node",
+    "node_effective_principals",
     "node_depth",
     "permission",
     "effect",
@@ -319,11 +362,12 @@ def run(input_path: str, output_dir: str) -> None:
     catalog_rows = json.loads(Path(ROLE_CATALOG_PATH).read_text(encoding="utf-8"))
     policy_data = json.loads(Path(ACCESS_POLICY_PATH).read_text(encoding="utf-8"))
 
-    tree_nodes, descendants = build_tree(tree_rows)
+    tree_nodes, descendants, children = build_tree(tree_rows)
     catalog = build_catalog(catalog_rows)
     table = applicable_rules(bindings, catalog, tree_nodes, descendants)
 
     # --- winner selection (#ACL-4110) and provenance (#ACL-4112) ---
+    roots = [node for node in tree_nodes if node == "/"] or tree_nodes[:1]
     winners: dict[tuple[str, str, str], dict] = {}
     for key in sorted(table):
         rules = sorted(table[key], key=precedence_key)
@@ -375,6 +419,15 @@ def run(input_path: str, output_dir: str) -> None:
             + decision["node_depth"]
             + _ceil_div(decision["contest_count"], ESCALATION_CONTEST_DIV)
         )
+
+    # --- inherited reach per node (#ACL-4172) ---
+    allow_grants: dict[str, set[str]] = {}
+    for (principal, node, _permission), decision in winners.items():
+        if decision["effect"] == "allow":
+            allow_grants.setdefault(node, set()).add(principal)
+    reach = effective_principal_counts(allow_grants, children, roots)
+    for decision in winners.values():
+        decision["node_effective_principals"] = reach.get(decision["node"], 0)
 
     decisions = [winners[key] for key in sorted(winners)]
 
@@ -444,6 +497,7 @@ def run(input_path: str, output_dir: str) -> None:
         "total_escalation_index": sum(d["escalation_index"] for d in decisions),
         "total_suppressed_descendants": sum(d["suppressed_descendants"] for d in decisions),
         "queued_decision_count": len(queue_rows),
+        "max_effective_principals": max((d["node_effective_principals"] for d in winners.values()), default=0),
         "max_risk_score": qmax("risk_score"),
         "max_escalation_index": qmax("escalation_index"),
         "max_contest_count": qmax("contest_count"),
