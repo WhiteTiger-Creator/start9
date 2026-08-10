@@ -1,0 +1,260 @@
+[
+  {
+    "binding_id": "b-001",
+    "principal": "@grp-alpha",
+    "role": "role-viewer",
+    "scope": "/prod/*"
+  },
+  {
+    "binding_id": "b-001",
+    "principal": "u-anders",
+    "role": "role-viewer",
+    "scope": "/prod/*"
+  },
+  {
+    "binding_id": "b-001",
+    "principal": "u-rosa",
+    "role": "role-viewer",
+    "scope": "/prod/*"
+  },
+  {
+    "binding_id": "b-002",
+    "principal": "@grp-alpha",
+    "role": "role-analyst",
+    "scope": "/prod/payments/*"
+  },
+  {
+    "binding_id": "b-002",
+    "principal": "u-anders",
+    "role": "role-analyst",
+    "scope": "/prod/payments/*"
+  },
+  {
+    "binding_id": "b-002",
+    "principal": "u-rosa",
+    "role": "role-analyst",
+    "scope": "/prod/payments/*"
+  },
+  {
+    "binding_id": "b-003",
+    "principal": "@grp-beta",
+    "role": "role-operator",
+    "scope": "/prod/*"
+  },
+  {
+    "binding_id": "b-003",
+    "principal": "@grp-platform",
+    "role": "role-operator",
+    "scope": "/prod/*"
+  },
+  {
+    "binding_id": "b-003",
+    "principal": "u-anders",
+    "role": "role-operator",
+    "scope": "/prod/*"
+  },
+  {
+    "binding_id": "b-004",
+    "principal": "@grp-alpha",
+    "role": "role-custodian",
+    "scope": "/prod/payments"
+  },
+  {
+    "binding_id": "b-004",
+    "principal": "u-anders",
+    "role": "role-custodian",
+    "scope": "/prod/payments"
+  },
+  {
+    "binding_id": "b-004",
+    "principal": "u-rosa",
+    "role": "role-custodian",
+    "scope": "/prod/payments"
+  },
+  {
+    "binding_id": "b-005",
+    "principal": "u-anders",
+    "role": "role-breakglass",
+    "scope": "/prod/payments/ledger"
+  },
+  {
+    "binding_id": "b-006",
+    "principal": "@grp-secops",
+    "role": "role-operator",
+    "scope": "/stage/*"
+  },
+  {
+    "binding_id": "b-006",
+    "principal": "u-rosa",
+    "role": "role-operator",
+    "scope": "/stage/*"
+  },
+  {
+    "binding_id": "b-007",
+    "principal": "@grp-oncall",
+    "role": "role-custodian",
+    "scope": "/prod/identity/keys"
+  },
+  {
+    "binding_id": "b-007",
+    "principal": "svc-deploybot",
+    "role": "role-custodian",
+    "scope": "/prod/identity/keys"
+  },
+  {
+    "binding_id": "b-008",
+    "principal": "@grp-retired",
+    "role": "role-auditor",
+    "scope": "/corp/*"
+  },
+  {
+    "binding_id": "b-009",
+    "principal": "@grp-legacy-audit",
+    "role": "role-viewer",
+    "scope": "/corp/reporting"
+  },
+  {
+    "binding_id": "b-010",
+    "principal": "svc-deploybot",
+    "role": "role-operator",
+    "scope": "/prod/payments/settlement"
+  },
+  {
+    "binding_id": "b-011",
+    "principal": "u-devi",
+    "role": "role-auditor",
+    "scope": "/corp/*"
+  },
+  {
+    "binding_id": "b-011",
+    "principal": "u-priya",
+    "role": "role-auditor",
+    "scope": "/corp/*"
+  },
+  {
+    "binding_id": "b-012",
+    "principal": "u-rosa",
+    "role": "role-custodian",
+    "scope": "/*"
+  },
+  {
+    "binding_id": "b-013",
+    "principal": "u-lena",
+    "role": "role-analyst",
+    "scope": "/prod/*"
+  },
+  {
+    "binding_id": "b-014",
+    "principal": "@grp-beta",
+    "role": "role-viewer",
+    "scope": "/stage/sandbox"
+  },
+  {
+    "binding_id": "b-014",
+    "principal": "@grp-platform",
+    "role": "role-viewer",
+    "scope": "/stage/sandbox"
+  },
+  {
+    "binding_id": "b-014",
+    "principal": "u-anders",
+    "role": "role-viewer",
+    "scope": "/stage/sandbox"
+  },
+  {
+    "binding_id": "b-015",
+    "principal": "@grp-alpha",
+    "role": "role-operator",
+    "scope": "/prod"
+  },
+  {
+    "binding_id": "b-015",
+    "principal": "u-anders",
+    "role": "role-operator",
+    "scope": "/prod"
+  },
+  {
+    "binding_id": "b-015",
+    "principal": "u-rosa",
+    "role": "role-operator",
+    "scope": "/prod"
+  },
+  {
+    "binding_id": "b-016",
+    "principal": "@grp-secops",
+    "role": "role-breakglass",
+    "scope": "/prod/payments/*"
+  },
+  {
+    "binding_id": "b-016",
+    "principal": "u-rosa",
+    "role": "role-breakglass",
+    "scope": "/prod/payments/*"
+  },
+  {
+    "binding_id": "b-017",
+    "principal": "@grp-delta",
+    "role": "role-custodian",
+    "scope": "/prod/identity/*"
+  },
+  {
+    "binding_id": "b-017",
+    "principal": "u-devi",
+    "role": "role-custodian",
+    "scope": "/prod/identity/*"
+  },
+  {
+    "binding_id": "b-017",
+    "principal": "u-priya",
+    "role": "role-custodian",
+    "scope": "/prod/identity/*"
+  },
+  {
+    "binding_id": "b-018",
+    "principal": "svc-rotator",
+    "role": "role-custodian",
+    "scope": "/prod/identity"
+  },
+  {
+    "binding_id": "b-019",
+    "principal": "u-yusuf",
+    "role": "role-custodian",
+    "scope": "/corp/reporting"
+  },
+  {
+    "binding_id": "b-020",
+    "principal": "u-devi",
+    "role": "role-custodian",
+    "scope": "/stage/payments"
+  },
+  {
+    "binding_id": "b-020",
+    "principal": "u-priya",
+    "role": "role-custodian",
+    "scope": "/stage/payments"
+  },
+  {
+    "binding_id": "b-021",
+    "principal": "u-callum",
+    "role": "role-custodian",
+    "scope": "/corp/reporting"
+  },
+  {
+    "binding_id": "b-022",
+    "principal": "u-imani",
+    "role": "role-custodian",
+    "scope": "/stage/payments"
+  },
+  {
+    "binding_id": "b-023",
+    "principal": "@grp-secops",
+    "role": "role-auditor",
+    "scope": "/stage/*"
+  },
+  {
+    "binding_id": "b-023",
+    "principal": "u-rosa",
+    "role": "role-auditor",
+    "scope": "/stage/*"
+  }
+]

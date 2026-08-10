@@ -1,0 +1,16 @@
+[
+  {"binding_id": "c-001", "principal": "@team-core", "role": "role-operator", "scope": "/prod/*"},
+  {"binding_id": "c-002", "principal": "@team-span", "role": "role-custodian", "scope": "/prod/identity"},
+  {"binding_id": "c-003", "principal": "@team-relay", "role": "role-breakglass", "scope": "/prod/payments/*"},
+  {"binding_id": "c-004", "principal": "@team-empty", "role": "role-viewer", "scope": "/corp/*"},
+  {"binding_id": "c-005", "principal": "@team-unknown-pool", "role": "role-analyst", "scope": "/corp/reporting"},
+  {"binding_id": "c-006", "principal": "p-ines", "role": "role-analyst", "scope": "/prod/payments"},
+  {"binding_id": "c-007", "principal": "@team-deep", "role": "role-auditor", "scope": "/corp/*"},
+  {"binding_id": "c-008", "principal": "@team-core", "role": "role-custodian", "scope": "/prod/payments"},
+  {"binding_id": "c-009", "principal": "svc-mirror", "role": "role-viewer", "scope": "/stage/*"},
+  {"binding_id": "c-010", "principal": "@team-relay-b", "role": "role-operator", "scope": "/stage/sandbox"},
+  {"binding_id": "c-011", "principal": "@team-span", "role": "role-viewer", "scope": "/*"},
+  {"binding_id": "c-012", "principal": "p-tariq", "role": "role-custodian", "scope": "/corp/reporting"},
+  {"binding_id": "c-013", "principal": "@team-mid", "role": "role-operator", "scope": "/prod/identity/*"},
+  {"binding_id": "c-014", "principal": "p-oksana", "role": "role-custodian", "scope": "/stage/payments"}
+]

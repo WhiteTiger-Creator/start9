@@ -1,0 +1,224 @@
+[
+  {
+    "binding_id": "c-001",
+    "principal": "p-ines",
+    "role": "role-operator",
+    "scope": "/prod/*"
+  },
+  {
+    "binding_id": "c-001",
+    "principal": "p-kwame",
+    "role": "role-operator",
+    "scope": "/prod/*"
+  },
+  {
+    "binding_id": "c-001",
+    "principal": "p-oksana",
+    "role": "role-operator",
+    "scope": "/prod/*"
+  },
+  {
+    "binding_id": "c-001",
+    "principal": "p-tariq",
+    "role": "role-operator",
+    "scope": "/prod/*"
+  },
+  {
+    "binding_id": "c-001",
+    "principal": "p-zheng",
+    "role": "role-operator",
+    "scope": "/prod/*"
+  },
+  {
+    "binding_id": "c-002",
+    "principal": "p-ines",
+    "role": "role-custodian",
+    "scope": "/prod/identity"
+  },
+  {
+    "binding_id": "c-002",
+    "principal": "p-kwame",
+    "role": "role-custodian",
+    "scope": "/prod/identity"
+  },
+  {
+    "binding_id": "c-002",
+    "principal": "p-oksana",
+    "role": "role-custodian",
+    "scope": "/prod/identity"
+  },
+  {
+    "binding_id": "c-002",
+    "principal": "p-tariq",
+    "role": "role-custodian",
+    "scope": "/prod/identity"
+  },
+  {
+    "binding_id": "c-002",
+    "principal": "p-zheng",
+    "role": "role-custodian",
+    "scope": "/prod/identity"
+  },
+  {
+    "binding_id": "c-002",
+    "principal": "svc-hidden",
+    "role": "role-custodian",
+    "scope": "/prod/identity"
+  },
+  {
+    "binding_id": "c-003",
+    "principal": "p-kwame",
+    "role": "role-breakglass",
+    "scope": "/prod/payments/*"
+  },
+  {
+    "binding_id": "c-003",
+    "principal": "svc-mirror",
+    "role": "role-breakglass",
+    "scope": "/prod/payments/*"
+  },
+  {
+    "binding_id": "c-006",
+    "principal": "p-ines",
+    "role": "role-analyst",
+    "scope": "/prod/payments"
+  },
+  {
+    "binding_id": "c-007",
+    "principal": "p-oksana",
+    "role": "role-auditor",
+    "scope": "/corp/*"
+  },
+  {
+    "binding_id": "c-007",
+    "principal": "p-zheng",
+    "role": "role-auditor",
+    "scope": "/corp/*"
+  },
+  {
+    "binding_id": "c-007",
+    "principal": "svc-hidden",
+    "role": "role-auditor",
+    "scope": "/corp/*"
+  },
+  {
+    "binding_id": "c-008",
+    "principal": "p-ines",
+    "role": "role-custodian",
+    "scope": "/prod/payments"
+  },
+  {
+    "binding_id": "c-008",
+    "principal": "p-kwame",
+    "role": "role-custodian",
+    "scope": "/prod/payments"
+  },
+  {
+    "binding_id": "c-008",
+    "principal": "p-oksana",
+    "role": "role-custodian",
+    "scope": "/prod/payments"
+  },
+  {
+    "binding_id": "c-008",
+    "principal": "p-tariq",
+    "role": "role-custodian",
+    "scope": "/prod/payments"
+  },
+  {
+    "binding_id": "c-008",
+    "principal": "p-zheng",
+    "role": "role-custodian",
+    "scope": "/prod/payments"
+  },
+  {
+    "binding_id": "c-009",
+    "principal": "svc-mirror",
+    "role": "role-viewer",
+    "scope": "/stage/*"
+  },
+  {
+    "binding_id": "c-010",
+    "principal": "p-kwame",
+    "role": "role-operator",
+    "scope": "/stage/sandbox"
+  },
+  {
+    "binding_id": "c-010",
+    "principal": "svc-mirror",
+    "role": "role-operator",
+    "scope": "/stage/sandbox"
+  },
+  {
+    "binding_id": "c-011",
+    "principal": "p-ines",
+    "role": "role-viewer",
+    "scope": "/*"
+  },
+  {
+    "binding_id": "c-011",
+    "principal": "p-kwame",
+    "role": "role-viewer",
+    "scope": "/*"
+  },
+  {
+    "binding_id": "c-011",
+    "principal": "p-oksana",
+    "role": "role-viewer",
+    "scope": "/*"
+  },
+  {
+    "binding_id": "c-011",
+    "principal": "p-tariq",
+    "role": "role-viewer",
+    "scope": "/*"
+  },
+  {
+    "binding_id": "c-011",
+    "principal": "p-zheng",
+    "role": "role-viewer",
+    "scope": "/*"
+  },
+  {
+    "binding_id": "c-011",
+    "principal": "svc-hidden",
+    "role": "role-viewer",
+    "scope": "/*"
+  },
+  {
+    "binding_id": "c-012",
+    "principal": "p-tariq",
+    "role": "role-custodian",
+    "scope": "/corp/reporting"
+  },
+  {
+    "binding_id": "c-013",
+    "principal": "p-oksana",
+    "role": "role-operator",
+    "scope": "/prod/identity/*"
+  },
+  {
+    "binding_id": "c-013",
+    "principal": "p-tariq",
+    "role": "role-operator",
+    "scope": "/prod/identity/*"
+  },
+  {
+    "binding_id": "c-013",
+    "principal": "p-zheng",
+    "role": "role-operator",
+    "scope": "/prod/identity/*"
+  },
+  {
+    "binding_id": "c-013",
+    "principal": "svc-hidden",
+    "role": "role-operator",
+    "scope": "/prod/identity/*"
+  },
+  {
+    "binding_id": "c-014",
+    "principal": "p-oksana",
+    "role": "role-custodian",
+    "scope": "/stage/payments"
+  }
+]

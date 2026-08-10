@@ -1,0 +1,14 @@
+[
+  {"node": "/", "parent": null, "label": "root"},
+  {"node": "/prod", "parent": "/", "label": "production"},
+  {"node": "/prod/payments", "parent": "/prod", "label": "payments platform"},
+  {"node": "/prod/payments/ledger", "parent": "/prod/payments", "label": "ledger service"},
+  {"node": "/prod/payments/settlement", "parent": "/prod/payments", "label": "settlement service"},
+  {"node": "/prod/identity", "parent": "/prod", "label": "identity platform"},
+  {"node": "/prod/identity/keys", "parent": "/prod/identity", "label": "key material"},
+  {"node": "/stage", "parent": "/", "label": "staging"},
+  {"node": "/stage/payments", "parent": "/stage", "label": "staging payments"},
+  {"node": "/stage/sandbox", "parent": "/stage", "label": "sandbox"},
+  {"node": "/corp", "parent": "/", "label": "corporate"},
+  {"node": "/corp/reporting", "parent": "/corp", "label": "reporting warehouse"}
+]

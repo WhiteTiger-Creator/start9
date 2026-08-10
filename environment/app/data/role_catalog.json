@@ -1,0 +1,44 @@
+[
+  {
+    "role": "role-viewer",
+    "inherits": [],
+    "rules": [{"permission": "read", "effect": "allow"}]
+  },
+  {
+    "role": "role-analyst",
+    "inherits": ["role-viewer"],
+    "rules": [{"permission": "export", "effect": "allow"}]
+  },
+  {
+    "role": "role-operator",
+    "inherits": ["role-analyst"],
+    "rules": [
+      {"permission": "deploy", "effect": "allow"},
+      {"permission": "delete", "effect": "deny"}
+    ]
+  },
+  {
+    "role": "role-custodian",
+    "inherits": ["role-viewer"],
+    "rules": [
+      {"permission": "rotate", "effect": "allow"},
+      {"permission": "export", "effect": "deny"}
+    ]
+  },
+  {
+    "role": "role-auditor",
+    "inherits": ["role-analyst"],
+    "rules": [
+      {"permission": "read", "effect": "allow"},
+      {"permission": "delete", "effect": "deny"}
+    ]
+  },
+  {
+    "role": "role-breakglass",
+    "inherits": ["role-operator", "role-custodian"],
+    "rules": [
+      {"permission": "delete", "effect": "allow"},
+      {"permission": "rotate", "effect": "allow"}
+    ]
+  }
+]

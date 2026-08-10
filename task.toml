@@ -1,0 +1,103 @@
+artifacts = ["/app"]
+name = "permission-resolution-engine"
+
+[metadata]
+author_name = "Jonathan"
+author_email = "jtolbert0175@gmail.com"
+difficulty_explanation = '''
+Restoring this evaluator is the work of an identity and access-management or access-platform
+engineer running a permission recertification, and it is a genuinely dependent chain rather than a
+single repair. The role bindings are addressed to group handles, several of which nest other
+handles, so the first step is to rebuild /app/data/expanded_bindings.json from the directory export
+under the board's final expansion decision -- a breadth-first nesting walk bounded at level three, a
+never-re-expanded group that is what terminates a membership cycle, de-duplication so a principal
+reachable through two handles binds once, and no binding at all for an empty or undefined handle.
+A shallow expansion never reaches a principal who is only a member of a twice-nested group, and an
+unbounded one pulls in principals the board excluded, so every downstream decision is wrong if that
+expansion is wrong. Only then can the engineer reconstruct the precedence engine itself from a long,
+mostly-noise decision log rather than a specification: the breadth-first role-inheritance distance,
+the scope-specificity scale on which a deeper wildcard outranks a shallower exact scope, the
+downward propagation of an exact deny but not an exact allow, a precedence chain that compares
+specificity and inheritance distance before effect so a more specific allow beats a broader deny and
+a child role overrides an inherited deny, the provenance cascade, the contest and cascade
+bookkeeping, scoring, admission, tiering, ordering and the capacity cap all have to be traced to
+their final dated decision, with each rounding direction fixed independently. Because decisions
+propagate down the resource tree an error near the root changes every leaf beneath it, so holding
+the expansion semantics and the whole interacting precedence set in mind at once is what separates a
+correct reconstruction from a plausible-looking one. The directory, bindings and resource hierarchy
+are synthetic, built for this exercise rather than drawn from a real tenant.
+'''
+solution_explanation = '''
+solution/solve.sh drives the two dependent steps inside the environment container. Step one runs
+solution/expand_aliases.py, which implements the board's final expansion decision (#ACL-4170):
+concrete-principal bindings pass through in place, an alias-addressed binding is expanded breadth
+first over nested_groups from level 0 to level 3 inclusive, a group already expanded on that binding
+is skipped so a nesting cycle terminates, the collected principals are de-duplicated and emitted in
+ascending order behind their source binding's file position, an undefined or empty handle yields no
+record, and each record carries exactly binding_id, principal, role and scope. It writes the result
+over the stale shallow /app/data/expanded_bindings.json. Step two copies
+solution/resolve_access_fixed.py over /app/workflow/resolve_access.py and runs it against that
+expanded set. The evaluator canonicalizes names and paths, resolves each bound role's rules by a
+breadth-first inheritance walk that records the minimum distance, matches exact and wildcard scopes
+on the resource tree, scores specificity as 2*depth+1 for an exact scope and 2*depth for a wildcard,
+propagates an exact deny to every strict descendant while an exact allow stays put, then resolves
+each (principal, node, permission) triple by specificity, then inheritance distance, then deny over
+allow, then binding_id and role. It labels the winner with the governance provenance cascade, counts
+the losing rules and the descendants the winner suppresses, scores risk and escalation with the
+final ceilings, admits the reviewed permissions above their resolved floors, tiers and orders the
+exception queue and applies the per-principal cap of three after ordering. It writes exactly
+summary.json, principal_decisions.json and compact exception_queue.jsonl into --output-dir. Every
+governing value is traced to its final entry in /app/incident/access_governance_log.md;
+report_spec.json supplies only the output contract and no derivation rule.
+'''
+verification_explanation = '''
+The separate verifier (tests/Dockerfile builds an isolated image the agent cannot see) collects the
+agent's whole /app as the declared artifact and runs tests/test_outputs.py against it. Step one is
+graded directly: /app/data/expanded_bindings.json must equal the sealed expansion, must carry only
+binding fields, must contain no remaining alias handle, and the alias-addressed bindings and the
+directory export must both survive untouched -- then the shipped shallow file, an unbounded closure,
+a cycle-naive walk that revisits groups and a depth-first walk are each asserted different from it,
+and the agent's own evaluator is re-run on all four wrong binding sets and required to disagree with
+the sealed outputs, which is what makes the two steps provably dependent. A dedicated test measures
+the dependency: a principal reachable only through a twice-nested handle loses every decision under
+the shallow expansion, and a named principal's effective decision flips between the correct and the
+shallow expansion. Step two executes the agent's /app/workflow/resolve_access.py as a subprocess
+under an unprivileged uid (setpriv 65534, scrubbed environment, hard timeout) over both the expanded
+set and a held-out alternate binding set built from an alternate directory, and diffs summary.json,
+principal_decisions.json and exception_queue.jsonl against sealed fixtures generated from the
+reference. It also checks schema, field, sort, provenance and tiering invariants, summary math,
+idempotency, the command-line defaults, and that the resource tree, role catalog and policy paths
+actually influence output, with a static scan forbidding delegation to a database, dataframe or
+graph engine. The frozen broken snapshot /app/workflow/.resolve_access.original is asserted present,
+unchanged and wrong. Confirmed locally in the real two-container flow: after solve.sh the verifier
+gives reward 1; a fresh environment with no solve.sh gives 0, and so does an environment where the
+evaluator is repaired but the bindings are never expanded.
+'''
+relevant_experience = '''
+Experience resolving effective permissions over a role and resource hierarchy -- transitive group
+expansion from a directory export with nested handles and membership cycles, scope specificity,
+role inheritance, deny propagation and precedence -- and reconstructing that behaviour from an
+authoritative but noisy governance log rather than a clean specification: tracing incrementally
+revised rules to their final form, matching a byte-level output contract, and recognising where the
+governing dialect departs from the deny-overrides default most access-control engines ship with.
+'''
+category = "Security"
+subcategory = "AppSec"
+tags = ["access-control", "rbac", "permission-resolution", "deny-precedence", "directory-expansion"]
+expert_time_estimate_hours = 4
+difficulty = "advanced"
+languages = ["python"]
+
+[environment]
+build_timeout_sec = 900
+cpus = 2
+memory_mb = 4096
+storage_mb = 10240
+network_mode = "no-network"
+
+[agent]
+timeout_sec = 5400
+
+[verifier]
+timeout_sec = 1800
+environment_mode = "separate"

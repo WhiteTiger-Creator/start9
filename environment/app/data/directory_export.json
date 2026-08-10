@@ -1,0 +1,71 @@
+{
+  "export_id": "dir-export-2026-06-02",
+  "groups": [
+    {
+      "handle": "@grp-platform",
+      "display_name": "Platform engineering",
+      "members": ["u-anders", "u-rosa"],
+      "nested_groups": ["@grp-alpha"]
+    },
+    {
+      "handle": "@grp-alpha",
+      "display_name": "Platform alpha pod",
+      "members": ["u-lena"],
+      "nested_groups": ["@grp-beta"]
+    },
+    {
+      "handle": "@grp-beta",
+      "display_name": "Platform beta pod",
+      "members": ["u-marek"],
+      "nested_groups": ["@grp-gamma"]
+    },
+    {
+      "handle": "@grp-gamma",
+      "display_name": "Platform gamma pod",
+      "members": ["u-priya", "u-devi"],
+      "nested_groups": ["@grp-delta"]
+    },
+    {
+      "handle": "@grp-delta",
+      "display_name": "Automation delta pod",
+      "members": ["svc-rotator"],
+      "nested_groups": ["@grp-epsilon"]
+    },
+    {
+      "handle": "@grp-epsilon",
+      "display_name": "Automation epsilon pod",
+      "members": ["u-yusuf"],
+      "nested_groups": []
+    },
+    {
+      "handle": "@grp-oncall",
+      "display_name": "Primary on-call rotation",
+      "members": ["u-rosa"],
+      "nested_groups": ["@grp-secops"]
+    },
+    {
+      "handle": "@grp-secops",
+      "display_name": "Security operations rotation",
+      "members": ["svc-deploybot"],
+      "nested_groups": ["@grp-oncall"]
+    },
+    {
+      "handle": "@grp-readers",
+      "display_name": "Reporting readers",
+      "members": ["u-priya", "u-devi"],
+      "nested_groups": []
+    },
+    {
+      "handle": "@grp-duty",
+      "display_name": "Duty manager rotation",
+      "members": ["u-anders"],
+      "nested_groups": ["@grp-platform", "@grp-beta"]
+    },
+    {
+      "handle": "@grp-retired",
+      "display_name": "Retired contractor pool",
+      "members": [],
+      "nested_groups": []
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "default": {
+    "permission_weight": 4,
+    "admission_min": 9,
+    "critical_risk_min": 24,
+    "critical_escalation_min": 34,
+    "elevated_risk_min": 15
+  },
+  "permission_overrides": {
+    "delete": {
+      "permission_weight": 9,
+      "critical_risk_min": 20
+    },
+    "export": {
+      "permission_weight": 5,
+      "admission_min": 8
+    },
+    "read": {
+      "admission_min": 3
+    },
+    "rotate": {
+      "permission_weight": 7
+    }
+  }
+}

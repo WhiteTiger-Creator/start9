@@ -1,0 +1,9 @@
+Act as the access-platform engineer picking up a stalled permission review. The control-plane evaluator at `/app/workflow/resolve_access.py` still resolves several stages against draft rules the access governance board later reversed, and the binding set it reads is stale.
+
+Nothing it resolves can be trusted until the role bindings are expanded. Most bindings in `/app/data/role_bindings.json` name group handles rather than people, several nest other handles, and `/app/data/expanded_bindings.json` still holds the previous cycle's shallow expansion. `/app/data/directory_export.json` records every group, its members and its nested groups. How far a handle expands, what a membership cycle does to that walk, what an empty or unknown handle produces, and how the result is deduplicated and ordered are governance decisions, not your choice, and the expanded set has to reach its expected path before the evaluator is worth running.
+
+Then restore the evaluator. Preserve its `--input` and `--output-dir` options and their defaults, and always read the resource tree, the role catalog and the access policies from their fixed absolute paths under `/app/data`; `--input` selects the binding set only.
+
+`/app/docs/report_spec.json` is the output contract: paths, schemas, required-field lists, coercions, container shapes and sort orders. It says nothing about how any value is derived. Reconstruct that from `/app/incident/access_governance_log.md`, mostly routine noise recording rules drafted, revised and reversed over several months; where entries conflict, the later dated decision governs.
+
+A run writes exactly `/app/output/summary.json`, `/app/output/principal_decisions.json` and `/app/output/exception_queue.jsonl`. Derive every value from the operational inputs and never from grading artifacts: standard library only, correct against an alternate binding set, identical across reruns, and leave the frozen incident snapshot in `/app/workflow` untouched.
