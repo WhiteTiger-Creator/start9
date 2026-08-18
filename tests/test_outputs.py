@@ -10,6 +10,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -99,6 +100,11 @@ def _digest(value: object) -> str:
 # from every grant is the node count times the grant count and cannot finish.
 RUNTIME_BUDGET_SEC = 90.0
 
+# Wall-clock of each graded run, keyed by the input it was given, so the budget
+# stated in instruction.md and report_spec.json is enforced at its stated value
+# rather than only by the much looser harness timeout.
+_ELAPSED: dict[str, float] = {}
+
 
 def _load_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
@@ -150,10 +156,12 @@ def _run_pipeline(tmp_path: Path, script_path: Path = WORKFLOW_PATH, input_path:
     staged_input = work / "input.json"
     shutil.copy(str(input_path), str(staged_input))
     os.chmod(staged_input, 0o644)
+    started = time.monotonic()
     result = _run_agent(
         [sys.executable, str(script_path), "--input", str(staged_input), "--output-dir", str(out_dir)],
         cwd=work,
     )
+    _ELAPSED[str(input_path)] = time.monotonic() - started
     assert result.returncode == 0
     summary = _load_json(out_dir / "summary.json")
     decisions = _load_json(out_dir / "principal_decisions.json")
@@ -816,3 +824,18 @@ def test_evaluator_does_not_reference_test_artifacts():
     code = WORKFLOW_PATH.read_text(encoding="utf-8")
     for token in ("/tests", "expected_report.json", "alt_expanded_bindings.json"):
         assert token not in code
+
+
+def test_graded_run_meets_documented_runtime_budget(primary_outputs):
+    """The graded run finishes inside the budget instruction.md and the output
+    contract both state, not merely inside the harness safety timeout."""
+    elapsed = _ELAPSED[str(DEFAULT_INPUT)]
+    assert elapsed <= RUNTIME_BUDGET_SEC, (
+        f"graded run took {elapsed:.1f}s, over the {RUNTIME_BUDGET_SEC}s budget"
+    )
+
+
+def test_runtime_budget_is_stated_in_the_contract():
+    """The budget enforced above is the one the output contract publishes, so the
+    verifier and the contract cannot drift apart."""
+    assert int(SPEC["runtime_budget_seconds"]) == int(RUNTIME_BUDGET_SEC)
