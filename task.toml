@@ -57,13 +57,16 @@ report_spec.json supplies only the output contract and no derivation rule.
 '''
 verification_explanation = '''
 The separate verifier (tests/Dockerfile builds an isolated image the agent cannot see) collects the
-agent's whole /app as the declared artifact and runs tests/test_outputs.py against it. Step one is
+agent's whole /app as the declared artifact and runs tests/test_outputs.py against it, its shared machinery factored into
+tests/harness.py so the assertions read on their own. Step one is
 graded directly: /app/data/expanded_bindings.json must equal the sealed expansion, must carry only
 binding fields, must contain no remaining alias handle, and the alias-addressed bindings and the
-directory export must both survive untouched -- then the shipped shallow file, an unbounded closure,
-a cycle-naive walk that revisits groups and a depth-first walk are each asserted different from it,
-and the agent's own evaluator is re-run on all four wrong binding sets and required to disagree with
-the sealed outputs, which is what makes the two steps provably dependent. A dedicated test measures
+directory export must both survive untouched -- then four plausible mis-walks of the directory --
+the shipped shallow file, a walk that takes only direct members, one that drops group handles
+entirely, and one that reuses a single visited set across every binding so later bindings
+under-expand -- are each asserted different from it, and the agent's own evaluator is re-run on all
+four wrong binding sets and required to disagree with the sealed outputs, which is what makes the
+two steps provably dependent. A dedicated test measures
 the dependency: a principal reachable only through a twice-nested handle loses every decision under
 the shallow expansion, and a named principal's effective decision flips between the correct and the
 shallow expansion. Step two executes the agent's /app/workflow/resolve_access.py as a subprocess
