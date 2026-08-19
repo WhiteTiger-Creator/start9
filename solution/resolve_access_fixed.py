@@ -27,10 +27,13 @@ DEFAULT_OUTPUT_DIR = "/app/output"
 RESOURCE_TREE_PATH = "/app/data/resource_tree.json"
 ROLE_CATALOG_PATH = "/app/data/role_catalog.json"
 ACCESS_POLICY_PATH = "/app/data/access_policies.json"
+SCOPE_EXCLUSIONS_PATH = "/app/data/scope_exclusions.json"
+DUTY_CONFLICTS_PATH = "/app/data/duty_conflicts.json"
 
 SCHEMA_VERSION = "acl-resolve-v1"
 TIER_ORDER = ["critical", "elevated", "routine"]
-BASIS_ORDER = ["direct_grant", "propagated_deny", "role_inheritance", "scoped_wildcard"]
+BASIS_ORDER = ["direct_grant", "duty_conflict", "propagated_deny", "role_inheritance",
+               "scoped_wildcard"]
 
 # --- Governance constants (final decisions; see log entries in comments) ---
 EXACT_SPECIFICITY_BONUS = 1   # #ACL-4108: exact = 2*depth+1, wildcard = 2*depth
@@ -196,11 +199,39 @@ def scope_specificity(base: str, wildcard: bool) -> int:
 # --------------------------------------------------------------------------
 # Applicable-rule expansion (#ACL-4104, #ACL-4108)
 # --------------------------------------------------------------------------
+def excluded_nodes(
+    rows: list[dict],
+    node_set: set[str],
+    descendants: dict[str, list[str]],
+) -> dict[str, set[str]]:
+    """#ACL-4200: the nodes each binding is carved out of.
+
+    An exclusion is read with the same wildcard semantics as a scope, so `X/*`
+    carves out X and every descendant of X while a bare X carves out X alone. An
+    exclusion naming a node the tree does not carry carves out nothing.
+    """
+    carved: dict[str, set[str]] = {}
+    for row in rows:
+        binding_id = canon(row.get("binding_id", ""))
+        if not binding_id:
+            continue
+        out = carved.setdefault(binding_id, set())
+        for scope in row.get("except", []):
+            base, wildcard = parse_scope(scope)
+            if base not in node_set:
+                continue
+            out.add(base)
+            if wildcard:
+                out.update(descendants.get(base, ()))
+    return carved
+
+
 def applicable_rules(
     bindings: list[dict],
     catalog: dict[str, dict],
     tree_nodes: list[str],
     descendants: dict[str, list[str]],
+    carved: dict[str, set[str]],
 ) -> dict[tuple[str, str, str], list[dict]]:
     node_set = set(tree_nodes)
     table: dict[tuple[str, str, str], list[dict]] = {}
@@ -221,7 +252,13 @@ def applicable_rules(
                 targets = [(base, False)] + [(kid, True) for kid in descendants[base]]
             else:
                 targets = [(base, False)]
+            blocked = carved.get(binding_id, ())
             for node, propagated in targets:
+                # #ACL-4200: a carved-out node takes nothing from this binding,
+                # and because the carve is applied to the target list an exact
+                # deny does not propagate into a carved-out subtree either.
+                if node in blocked:
+                    continue
                 table.setdefault((principal, node, permission), []).append(
                     {
                         "binding_id": binding_id,
@@ -273,6 +310,57 @@ def effective_principal_counts(
         for kid in reversed(children.get(node, ())):
             stack.append((kid, False))
     return counts
+
+
+def apply_duty_conflicts(
+    winners: dict[tuple[str, str, str], dict],
+    conflicts: list[dict],
+    policy_data: dict,
+) -> int:
+    """#ACL-4204: separation of duties, applied once every decision is resolved.
+
+    Where a principal holds an ALLOW on both permissions of a conflicting pair at
+    the same node, the allow whose permission carries the lower resolved
+    permission_weight is revoked: its effect becomes deny and its basis becomes
+    duty_conflict. A tie in weight revokes the lexicographically greater
+    permission. The pairs are applied in ascending conflict_id, and a permission
+    already revoked no longer counts as held for a later pair. The revocation is
+    node-local: it never propagates to descendants, and it leaves contest_count,
+    contested_effects and suppressed_descendants exactly as resolved.
+    """
+    weights: dict[str, int] = {}
+
+    def weight(permission: str) -> int:
+        if permission not in weights:
+            weights[permission] = resolve_policy(permission, policy_data)["permission_weight"]
+        return weights[permission]
+
+    sites: dict[tuple[str, str], set[str]] = {}
+    for (principal, node, permission), decision in winners.items():
+        if decision["effect"] == "allow":
+            sites.setdefault((principal, node), set()).add(permission)
+
+    revoked = 0
+    for conflict in sorted(conflicts, key=lambda c: canon(c.get("conflict_id", ""))):
+        names = sorted(canon(x) for x in conflict.get("permissions", []))
+        if len(names) != 2:
+            continue
+        first, second = names
+        if weight(first) < weight(second):
+            loser = first
+        elif weight(second) < weight(first):
+            loser = second
+        else:
+            loser = max(first, second)
+        for site, held in sites.items():
+            if first not in held or second not in held:
+                continue
+            decision = winners[(site[0], site[1], loser)]
+            decision["effect"] = "deny"
+            decision["decision_basis"] = "duty_conflict"
+            held.discard(loser)
+            revoked += 1
+    return revoked
 
 
 def precedence_key(rule: dict) -> tuple:
@@ -361,10 +449,13 @@ def run(input_path: str, output_dir: str) -> None:
     tree_rows = json.loads(Path(RESOURCE_TREE_PATH).read_text(encoding="utf-8"))
     catalog_rows = json.loads(Path(ROLE_CATALOG_PATH).read_text(encoding="utf-8"))
     policy_data = json.loads(Path(ACCESS_POLICY_PATH).read_text(encoding="utf-8"))
+    exclusion_rows = json.loads(Path(SCOPE_EXCLUSIONS_PATH).read_text(encoding="utf-8"))
+    conflict_rows = json.loads(Path(DUTY_CONFLICTS_PATH).read_text(encoding="utf-8"))
 
     tree_nodes, descendants, children = build_tree(tree_rows)
     catalog = build_catalog(catalog_rows)
-    table = applicable_rules(bindings, catalog, tree_nodes, descendants)
+    carved = excluded_nodes(exclusion_rows, set(tree_nodes), descendants)
+    table = applicable_rules(bindings, catalog, tree_nodes, descendants, carved)
 
     # --- winner selection (#ACL-4110) and provenance (#ACL-4112) ---
     roots = [node for node in tree_nodes if node == "/"] or tree_nodes[:1]
@@ -404,6 +495,10 @@ def run(input_path: str, output_dir: str) -> None:
             ):
                 count += 1
         decision["suppressed_descendants"] = count
+
+    # --- separation of duties (#ACL-4204), settled once every decision is
+    # resolved and before the artifacts are emitted.
+    revoked_conflict_count = apply_duty_conflicts(winners, conflict_rows, policy_data)
 
     # --- scoring (#ACL-4148, #ACL-4118) ---
     for decision in winners.values():
@@ -497,6 +592,7 @@ def run(input_path: str, output_dir: str) -> None:
         "total_escalation_index": sum(d["escalation_index"] for d in decisions),
         "total_suppressed_descendants": sum(d["suppressed_descendants"] for d in decisions),
         "queued_decision_count": len(queue_rows),
+        "revoked_conflict_count": revoked_conflict_count,
         "max_effective_principals": max((d["node_effective_principals"] for d in winners.values()), default=0),
         "max_risk_score": qmax("risk_score"),
         "max_escalation_index": qmax("escalation_index"),

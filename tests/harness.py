@@ -27,6 +27,8 @@ DIRECTORY_PATH = Path("/app/data/directory_export.json")
 RESOURCE_TREE_PATH = Path("/app/data/resource_tree.json")
 ROLE_CATALOG_PATH = Path("/app/data/role_catalog.json")
 POLICY_PATH = Path("/app/data/access_policies.json")
+EXCLUSIONS_PATH = Path("/app/data/scope_exclusions.json")
+CONFLICTS_PATH = Path("/app/data/duty_conflicts.json")
 SPEC_PATH = Path("/app/docs/report_spec.json")
 LOG_PATH = Path("/app/incident/access_governance_log.md")
 EXPECTED_FIXTURE = Path("/tests/fixtures/expected_report.json")
@@ -34,7 +36,8 @@ ALT_INPUT = Path("/tests/fixtures/alt_expanded_bindings.json")
 
 TIER_ORDER = ["critical", "elevated", "routine"]
 TIER_RANK = {name: len(TIER_ORDER) - idx for idx, name in enumerate(TIER_ORDER)}
-BASIS_ORDER = ["direct_grant", "propagated_deny", "role_inheritance", "scoped_wildcard"]
+BASIS_ORDER = ["direct_grant", "duty_conflict", "propagated_deny", "role_inheritance",
+               "scoped_wildcard"]
 
 FIXTURE = json.loads(EXPECTED_FIXTURE.read_text())
 SPEC = json.loads(SPEC_PATH.read_text())

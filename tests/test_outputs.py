@@ -21,7 +21,8 @@ from pathlib import Path
 import pytest
 
 from harness import (
-    ALT_INPUT, BASELINE, BASIS_ORDER, BINDING_FIELDS, CWORK, DECISION_KEYS,
+    ALT_INPUT, BASELINE, BASIS_ORDER, BINDING_FIELDS, CONFLICTS_PATH, CWORK,
+    DECISION_KEYS, EXCLUSIONS_PATH,
     DEFAULT_INPUT, DIRECTORY_PATH, ELAPSED, FIXTURE, LOG_PATH,
     ORIGINAL_WORKFLOW_PATH, POLICY_FIELDS, POLICY_PATH, PROBE_BINDINGS,
     QUEUE_KEYS, RESOURCE_TREE_PATH, REVIEWED_PERMISSIONS, ROLE_CATALOG_PATH,
@@ -569,3 +570,134 @@ def test_submitted_program_runs_unprivileged_and_cannot_write_reward(tmp_path: P
     assert res.stdout.strip().splitlines()[0] == "65534", "must run as uid 65534"
     assert res.returncode != 0 and "Permission denied" in res.stderr, (
         "unprivileged submitted program must not be able to write the reward path")
+
+
+# --------------------------------------------------------------------------
+# Scope exclusions and separation of duties
+# --------------------------------------------------------------------------
+def _with_registers(tmp_path: Path, label: str, bindings, *, excepts=None, conflicts=None):
+    """Run the submitted evaluator over crafted bindings with crafted registers."""
+    saved = {p: p.read_text(encoding="utf-8") for p in (EXCLUSIONS_PATH, CONFLICTS_PATH)}
+    try:
+        write_json(EXCLUSIONS_PATH, excepts if excepts is not None else [])
+        write_json(CONFLICTS_PATH, conflicts if conflicts is not None else [])
+        _, summary, decisions, queue = run_on_bindings(tmp_path, label, bindings)
+        return summary, {(pr, r["node"], r["permission"]): r
+                         for pr, rows in decisions.items() for r in rows}
+    finally:
+        for path, text in saved.items():
+            path.write_text(text, encoding="utf-8")
+
+
+def test_an_exclusion_carves_its_subtree_out_of_the_binding(tmp_path: Path):
+    """A carved-out node takes nothing from the binding it is carved from.
+
+    The draft that treated the exclusion list as reviewer guidance would leave the
+    /prod/* grant reaching /prod/payments and both its children.
+    """
+    binding = [{"binding_id": "x-001", "principal": "excl-one",
+                "role": "role-operator", "scope": "/prod/*"}]
+    plain, _ = _with_registers(tmp_path, "excl_none", binding)
+    carved, rows = _with_registers(
+        tmp_path, "excl_some", binding,
+        excepts=[{"binding_id": "x-001", "except": ["/prod/payments/*"]}])
+    assert carved["resolved_decision_count"] < plain["resolved_decision_count"]
+    for node in ("/prod/payments", "/prod/payments/ledger", "/prod/payments/settlement"):
+        assert not [k for k in rows if k[0] == "excl-one" and k[1] == node], node
+    assert [k for k in rows if k[0] == "excl-one" and k[1] == "/prod"]
+
+
+def test_an_exclusion_blocks_an_exact_denys_propagation(tmp_path: Path):
+    """The carve stops a propagated deny at the carved node while its sibling keeps it."""
+    binding = [{"binding_id": "x-002", "principal": "excl-two",
+                "role": "role-custodian", "scope": "/prod/payments"}]
+    _, rows = _with_registers(
+        tmp_path, "excl_prop", binding,
+        excepts=[{"binding_id": "x-002", "except": ["/prod/payments/ledger"]}])
+    reached = {k[1] for k in rows if k[0] == "excl-two"}
+    assert "/prod/payments" in reached
+    assert "/prod/payments/ledger" not in reached
+    assert "/prod/payments/settlement" in reached
+
+
+def test_an_exclusion_naming_an_unknown_node_carves_nothing(tmp_path: Path):
+    """A carve the tree does not carry leaves the binding exactly as it was."""
+    binding = [{"binding_id": "x-003", "principal": "excl-three",
+                "role": "role-operator", "scope": "/prod/*"}]
+    plain, _ = _with_registers(tmp_path, "excl_plain", binding)
+    dangling, _ = _with_registers(
+        tmp_path, "excl_dangling", binding,
+        excepts=[{"binding_id": "x-003", "except": ["/no/such/node/*"]}])
+    assert dangling == plain
+
+
+def test_an_exclusion_does_not_change_scope_specificity(tmp_path: Path):
+    """Specificity is measured on the scope as written, not on what survives the carve."""
+    binding = [{"binding_id": "x-004", "principal": "excl-four",
+                "role": "role-operator", "scope": "/prod/*"}]
+    _, plain = _with_registers(tmp_path, "spec_plain", binding)
+    _, carved = _with_registers(
+        tmp_path, "spec_carved", binding,
+        excepts=[{"binding_id": "x-004", "except": ["/prod/payments/*"]}])
+    shared = set(plain) & set(carved)
+    assert shared
+    for key in shared:
+        assert plain[key]["scope_specificity"] == carved[key]["scope_specificity"], key
+
+
+def test_a_duty_conflict_revokes_the_lower_weighted_allow(tmp_path: Path):
+    """delete outweighs deploy, so the deploy allow is the one that becomes a deny."""
+    bindings = [{"binding_id": "d-001", "principal": "sod-one",
+                 "role": "role-breakglass", "scope": "/prod/payments"}]
+    _, before = _with_registers(tmp_path, "sod_off", bindings)
+    _, after = _with_registers(
+        tmp_path, "sod_on", bindings,
+        conflicts=[{"conflict_id": "SOD-01", "permissions": ["delete", "deploy"]}])
+    node = "/prod/payments"
+    if ("sod-one", node, "deploy") in before and ("sod-one", node, "delete") in before:
+        if (before[("sod-one", node, "deploy")]["effect"] == "allow"
+                and before[("sod-one", node, "delete")]["effect"] == "allow"):
+            assert after[("sod-one", node, "deploy")]["effect"] == "deny"
+            assert after[("sod-one", node, "deploy")]["decision_basis"] == "duty_conflict"
+            assert after[("sod-one", node, "delete")]["effect"] == "allow"
+            return
+    pytest.skip("the crafted binding does not hold both allows at the probe node")
+
+
+def test_the_graded_run_exercises_both_new_registers(primary_outputs):
+    """Both registers are load-bearing on the graded run, not merely present."""
+    _, summary, decisions, _ = primary_outputs
+    assert summary["revoked_conflict_count"] > 0
+    revoked = [r for rows in decisions.values() for r in rows
+               if r["decision_basis"] == "duty_conflict"]
+    assert len(revoked) == summary["revoked_conflict_count"]
+    assert all(r["effect"] == "deny" for r in revoked)
+    assert summary["basis_counts"]["duty_conflict"] == summary["revoked_conflict_count"]
+    carved = load_json(EXCLUSIONS_PATH)
+    assert carved and any(x.endswith("/*") for r in carved for x in r["except"])
+
+
+def test_exclusion_register_actually_influences_the_output(tmp_path: Path):
+    """The exclusion register is resolved from its fixed path, not inlined."""
+    saved = EXCLUSIONS_PATH.read_text(encoding="utf-8")
+    try:
+        write_json(EXCLUSIONS_PATH, [])
+        _, summary, _, _ = run_pipeline(tmp_path)
+        assert summary["resolved_decision_count"] > \
+            FIXTURE["primary"]["summary"]["resolved_decision_count"]
+    finally:
+        EXCLUSIONS_PATH.write_text(saved, encoding="utf-8")
+
+
+def test_duty_conflict_register_actually_influences_the_output(tmp_path: Path):
+    """The duty-conflict register is resolved from its fixed path, not inlined."""
+    saved = CONFLICTS_PATH.read_text(encoding="utf-8")
+    try:
+        write_json(CONFLICTS_PATH, [])
+        _, summary, _, _ = run_pipeline(tmp_path)
+        assert summary["revoked_conflict_count"] == 0
+        assert summary["basis_counts"]["duty_conflict"] == 0
+        assert summary["allow_decision_count"] > \
+            FIXTURE["primary"]["summary"]["allow_decision_count"]
+    finally:
+        CONFLICTS_PATH.write_text(saved, encoding="utf-8")

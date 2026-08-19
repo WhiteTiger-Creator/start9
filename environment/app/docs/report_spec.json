@@ -1,147 +1,26 @@
 {
-  "workflow_repair": {
-    "path": "/app/workflow/resolve_access.py",
-    "cli_usage": "python3 /app/workflow/resolve_access.py --input PATH --output-dir PATH",
-    "defaults": {
-      "input": "/app/data/expanded_bindings.json",
-      "output_dir": "/app/output",
-      "resource_tree": "/app/data/resource_tree.json",
-      "role_catalog": "/app/data/role_catalog.json",
-      "access_policies": "/app/data/access_policies.json"
-    },
-    "prohibited_imports": [
-      "sqlite3",
-      "pandas",
-      "duckdb",
-      "networkx"
-    ]
+  "binding_source": {
+    "expanded_path": "/app/data/expanded_bindings.json",
+    "path": "/app/data/role_bindings.json",
+    "shape": "[{\"binding_id\": str, \"principal\": str, \"role\": str, \"scope\": str}, ...]"
   },
-  "output_files": {
-    "summary_json": "summary.json",
-    "principal_decisions_json": "principal_decisions.json",
-    "exception_queue_jsonl": "exception_queue.jsonl",
-    "additional_files_allowed": false
+  "directory_source": {
+    "path": "/app/data/directory_export.json",
+    "shape": "{\"export_id\": str, \"groups\": [{\"handle\": str, \"display_name\": str, \"members\": [str, ...], \"nested_groups\": [str, ...]}, ...]}"
   },
-  "field_types": {
-    "principal": {
-      "type": "string",
-      "input_coercion": "str(principal).strip().lower()"
-    },
-    "role": {
-      "type": "string",
-      "input_coercion": "str(role).strip().lower()"
-    },
-    "permission": {
-      "type": "string",
-      "input_coercion": "str(permission).strip().lower()"
-    },
-    "node": {
-      "type": "string",
-      "input_coercion": "str(node).strip().lower(); empty segments dropped; rendered as '/' + '/'.join(segments), or '/' when no segments remain"
-    },
-    "effect": {
-      "type": "string",
-      "enum": [
-        "allow",
-        "deny"
-      ]
-    },
-    "decision_basis": {
-      "type": "string",
-      "enum": [
-        "direct_grant",
-        "propagated_deny",
-        "role_inheritance",
-        "scoped_wildcard"
-      ]
-    },
-    "tier": {
-      "type": "string",
-      "enum": [
-        "critical",
-        "elevated",
-        "routine"
-      ]
-    },
-    "node_depth": {
-      "type": "integer"
-    },
-    "inherit_distance": {
-      "type": "integer"
-    },
-    "scope_specificity": {
-      "type": "integer"
-    },
-    "contest_count": {
-      "type": "integer"
-    },
-    "suppressed_descendants": {
-      "type": "integer"
-    },
-    "risk_score": {
-      "type": "integer"
-    },
-    "escalation_index": {
-      "type": "integer"
-    },
-    "contested_effects": {
-      "type": "array",
-      "items": "string",
-      "order": "ascending"
-    },
-    "basis_counts": {
-      "type": "object",
-      "keys": [
-        "direct_grant",
-        "propagated_deny",
-        "role_inheritance",
-        "scoped_wildcard"
-      ]
-    },
-    "tier_counts": {
-      "type": "object",
-      "keys": [
-        "critical",
-        "elevated",
-        "routine"
-      ]
-    },
-    "policy_value": {
-      "type": "integer",
-      "input_coercion": "int(str(value).strip()); on failure int(float(str(value).strip())); on failure 0"
-    },
-    "node_effective_principals": {
-      "type": "integer"
-    }
-  },
-  "principal_decisions_json": {
-    "output_path": "principal_decisions.json",
-    "container": "object keyed by principal, each value the array of that principal's decision objects",
-    "key_sort": "ascending",
-    "item_sort": "node ascending, then permission ascending",
-    "required_fields": [
-      "node",
-      "node_depth",
-      "permission",
-      "effect",
-      "decision_basis",
-      "source_binding_id",
-      "source_role",
-      "source_scope",
-      "inherit_distance",
-      "scope_specificity",
-      "contest_count",
-      "contested_effects",
-      "suppressed_descendants",
-      "risk_score",
-      "escalation_index",
-      "node_effective_principals"
+  "duty_conflict_source": {
+    "container": "array",
+    "note": "read from this fixed absolute path; --input never relocates it",
+    "path": "/app/data/duty_conflicts.json",
+    "record_fields": [
+      "conflict_id",
+      "permissions"
     ]
   },
   "exception_queue": {
-    "output_path": "exception_queue.jsonl",
     "container": "one compact JSON object per line, json.dumps(..., separators=(',', ':'))",
     "decision_id_format": "{principal}:{node}:{permission}",
+    "output_path": "exception_queue.jsonl",
     "required_fields": [
       "decision_id",
       "principal",
@@ -164,10 +43,167 @@
       "node_effective_principals"
     ]
   },
+  "field_types": {
+    "basis_counts": {
+      "keys": [
+        "direct_grant",
+        "propagated_deny",
+        "role_inheritance",
+        "scoped_wildcard"
+      ],
+      "type": "object"
+    },
+    "contest_count": {
+      "type": "integer"
+    },
+    "contested_effects": {
+      "items": "string",
+      "order": "ascending",
+      "type": "array"
+    },
+    "decision_basis": {
+      "enum": [
+        "direct_grant",
+        "propagated_deny",
+        "role_inheritance",
+        "scoped_wildcard"
+      ],
+      "type": "string"
+    },
+    "effect": {
+      "enum": [
+        "allow",
+        "deny"
+      ],
+      "type": "string"
+    },
+    "escalation_index": {
+      "type": "integer"
+    },
+    "inherit_distance": {
+      "type": "integer"
+    },
+    "node": {
+      "input_coercion": "str(node).strip().lower(); empty segments dropped; rendered as '/' + '/'.join(segments), or '/' when no segments remain",
+      "type": "string"
+    },
+    "node_depth": {
+      "type": "integer"
+    },
+    "node_effective_principals": {
+      "type": "integer"
+    },
+    "permission": {
+      "input_coercion": "str(permission).strip().lower()",
+      "type": "string"
+    },
+    "policy_value": {
+      "input_coercion": "int(str(value).strip()); on failure int(float(str(value).strip())); on failure 0",
+      "type": "integer"
+    },
+    "principal": {
+      "input_coercion": "str(principal).strip().lower()",
+      "type": "string"
+    },
+    "revoked_conflict_count": "integer",
+    "risk_score": {
+      "type": "integer"
+    },
+    "role": {
+      "input_coercion": "str(role).strip().lower()",
+      "type": "string"
+    },
+    "scope_specificity": {
+      "type": "integer"
+    },
+    "suppressed_descendants": {
+      "type": "integer"
+    },
+    "tier": {
+      "enum": [
+        "critical",
+        "elevated",
+        "routine"
+      ],
+      "type": "string"
+    },
+    "tier_counts": {
+      "keys": [
+        "critical",
+        "elevated",
+        "routine"
+      ],
+      "type": "object"
+    }
+  },
+  "output_files": {
+    "additional_files_allowed": false,
+    "exception_queue_jsonl": "exception_queue.jsonl",
+    "principal_decisions_json": "principal_decisions.json",
+    "summary_json": "summary.json"
+  },
+  "policy_source": {
+    "path": "/app/data/access_policies.json",
+    "shape": "{\"default\": {field: int, ...}, \"permission_overrides\": {permission: {field: int, ...}, ...}}"
+  },
+  "principal_decisions_json": {
+    "container": "object keyed by principal, each value the array of that principal's decision objects",
+    "decision_basis_values": [
+      "direct_grant",
+      "duty_conflict",
+      "propagated_deny",
+      "role_inheritance",
+      "scoped_wildcard"
+    ],
+    "item_sort": "node ascending, then permission ascending",
+    "key_sort": "ascending",
+    "output_path": "principal_decisions.json",
+    "required_fields": [
+      "node",
+      "node_depth",
+      "permission",
+      "effect",
+      "decision_basis",
+      "source_binding_id",
+      "source_role",
+      "source_scope",
+      "inherit_distance",
+      "scope_specificity",
+      "contest_count",
+      "contested_effects",
+      "suppressed_descendants",
+      "risk_score",
+      "escalation_index",
+      "node_effective_principals"
+    ]
+  },
+  "resource_tree_source": {
+    "path": "/app/data/resource_tree.json",
+    "shape": "[{\"node\": str, \"parent\": str|null, \"label\": str}, ...]"
+  },
+  "role_catalog_source": {
+    "path": "/app/data/role_catalog.json",
+    "shape": "[{\"role\": str, \"inherits\": [str, ...], \"rules\": [{\"permission\": str, \"effect\": str}, ...]}, ...]"
+  },
+  "runtime_budget_seconds": 90,
+  "scope_exclusion_source": {
+    "container": "array",
+    "note": "read from this fixed absolute path; --input never relocates it",
+    "path": "/app/data/scope_exclusions.json",
+    "record_fields": [
+      "binding_id",
+      "except"
+    ]
+  },
   "summary_json": {
-    "output_path": "summary.json",
+    "basis_counts_key_order": [
+      "direct_grant",
+      "propagated_deny",
+      "role_inheritance",
+      "scoped_wildcard"
+    ],
     "container": "object",
-    "schema_version": "acl-resolve-v1",
+    "output_path": "summary.json",
     "required_fields": [
       "schema_version",
       "expanded_binding_count",
@@ -188,40 +224,31 @@
       "max_escalation_index",
       "max_contest_count",
       "max_suppressed_descendants",
-      "max_effective_principals"
+      "max_effective_principals",
+      "revoked_conflict_count"
     ],
-    "basis_counts_key_order": [
-      "direct_grant",
-      "propagated_deny",
-      "role_inheritance",
-      "scoped_wildcard"
-    ],
+    "schema_version": "acl-resolve-v1",
     "tier_counts_key_order": [
       "critical",
       "elevated",
       "routine"
     ]
   },
-  "binding_source": {
-    "path": "/app/data/role_bindings.json",
-    "expanded_path": "/app/data/expanded_bindings.json",
-    "shape": "[{\"binding_id\": str, \"principal\": str, \"role\": str, \"scope\": str}, ...]"
-  },
-  "directory_source": {
-    "path": "/app/data/directory_export.json",
-    "shape": "{\"export_id\": str, \"groups\": [{\"handle\": str, \"display_name\": str, \"members\": [str, ...], \"nested_groups\": [str, ...]}, ...]}"
-  },
-  "resource_tree_source": {
-    "path": "/app/data/resource_tree.json",
-    "shape": "[{\"node\": str, \"parent\": str|null, \"label\": str}, ...]"
-  },
-  "role_catalog_source": {
-    "path": "/app/data/role_catalog.json",
-    "shape": "[{\"role\": str, \"inherits\": [str, ...], \"rules\": [{\"permission\": str, \"effect\": str}, ...]}, ...]"
-  },
-  "policy_source": {
-    "path": "/app/data/access_policies.json",
-    "shape": "{\"default\": {field: int, ...}, \"permission_overrides\": {permission: {field: int, ...}, ...}}"
-  },
-  "runtime_budget_seconds": 90
+  "workflow_repair": {
+    "cli_usage": "python3 /app/workflow/resolve_access.py --input PATH --output-dir PATH",
+    "defaults": {
+      "access_policies": "/app/data/access_policies.json",
+      "input": "/app/data/expanded_bindings.json",
+      "output_dir": "/app/output",
+      "resource_tree": "/app/data/resource_tree.json",
+      "role_catalog": "/app/data/role_catalog.json"
+    },
+    "path": "/app/workflow/resolve_access.py",
+    "prohibited_imports": [
+      "sqlite3",
+      "pandas",
+      "duckdb",
+      "networkx"
+    ]
+  }
 }

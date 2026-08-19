@@ -31,7 +31,7 @@ propagate down the resource tree an error near the root changes every leaf benea
 the expansion semantics and the whole interacting precedence set in mind at once is what separates a
 correct reconstruction from a plausible-looking one. The directory, bindings and resource hierarchy
 are synthetic, built for this exercise rather than drawn from a real tenant.
-'''
+ Two further registers govern the result: `/app/data/scope_exclusions.json` carves named subtrees out of individual bindings, so a rule reaches fewer nodes than its scope names and an exact deny stops at the edge of a carve rather than propagating through it, and `/app/data/duty_conflicts.json` names permission pairs a principal may not hold together, so once every decision is resolved the lower-weighted allow of a conflicting pair is revoked to a deny under its own provenance label. Both interact with everything upstream -- a carve changes which rules contest a node and therefore the contest counts, the winner and the cascade measure, while a revocation changes the effect, the provenance and the allow and deny totals -- so neither can be bolted on after the precedence engine is otherwise right.'''
 solution_explanation = '''
 solution/solve.sh drives the two dependent steps inside the environment container. Step one runs
 solution/expand_aliases.py, which implements the board's final expansion decision (#ACL-4170):
@@ -54,7 +54,7 @@ exception queue and applies the per-principal cap of three after ordering. It wr
 summary.json, principal_decisions.json and compact exception_queue.jsonl into --output-dir. Every
 governing value is traced to its final entry in /app/incident/access_governance_log.md;
 report_spec.json supplies only the output contract and no derivation rule.
-'''
+ It also carves each binding down by the scope-exclusion register before any rule is applied (#ACL-4200) and revokes the lower-weighted allow of every duty-conflicting pair a principal holds at one node (#ACL-4204).'''
 verification_explanation = '''
 The separate verifier (tests/Dockerfile builds an isolated image the agent cannot see) collects the
 agent's whole /app as the declared artifact and runs tests/test_outputs.py against it, its shared machinery factored into
@@ -80,7 +80,7 @@ graph engine. The frozen broken snapshot /app/workflow/.resolve_access.original 
 unchanged and wrong. Confirmed locally in the real two-container flow: after solve.sh the verifier
 gives reward 1; a fresh environment with no solve.sh gives 0, and so does an environment where the
 evaluator is repaired but the bindings are never expanded.
-'''
+ Crafted registers additionally pin the two newest decisions: that a carve removes a subtree from its binding, that it stops an exact deny propagating into that subtree, that a carve naming an unknown node changes nothing, that a carve never alters scope specificity, and that a duty conflict revokes the lower-weighted allow while the higher-weighted one stands. Both new registers are also proven load-bearing on the graded run and resolved from their fixed paths.'''
 relevant_experience = '''
 Experience resolving effective permissions over a role and resource hierarchy -- transitive group
 expansion from a directory export with nested handles and membership cycles, scope specificity,

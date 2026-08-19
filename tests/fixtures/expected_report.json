@@ -1,87 +1,90 @@
 {
-  "primary": {
-    "summary": {
-      "schema_version": "acl-resolve-v1",
-      "expanded_binding_count": 38999,
-      "principal_count": 3891,
-      "resource_node_count": 42000,
-      "role_count": 16,
-      "resolved_decision_count": 475591,
-      "allow_decision_count": 223308,
-      "deny_decision_count": 252283,
-      "contested_decision_count": 115419,
-      "basis_counts": {
-        "direct_grant": 45192,
-        "propagated_deny": 197801,
-        "role_inheritance": 165284,
-        "scoped_wildcard": 67314
-      },
-      "tier_counts": {
-        "critical": 4254,
-        "elevated": 6328,
-        "routine": 955
-      },
-      "total_risk_score": 6370003,
-      "total_escalation_index": 9698367,
-      "total_suppressed_descendants": 696341,
-      "queued_decision_count": 11537,
-      "max_effective_principals": 133,
-      "max_risk_score": 83986,
-      "max_escalation_index": 83986,
-      "max_contest_count": 5,
-      "max_suppressed_descendants": 41988
-    },
-    "decisions_digest": "6824988b4bc41db5a00fd4118ec20ca95a9282cf9becfec35a9cfa3696cb4f0a",
-    "queue_digest": "0309cecdc4585b07567bc27709bdcd3ab4b741b029297bce2508c26c97775a80",
-    "queue_count": 11537
-  },
-  "expanded_digest": "2af5a640fdfc2633acb7754be72c486f7da93e787eb59dc28733d805307bb46f",
-  "expanded_count": 38999,
-  "role_bindings_digest": "a6f2649b6a4c2513b2e967588118b36f8e41a265f36a0fe2bc13a2bdd7e1dd4d",
-  "directory_export_digest": "919fe0f2dd01140b0bbb32b4e64f3ef50d44a4ed4a86d5be189ffae3cd48d17b",
   "alternate": {
+    "decisions_digest": "f5085374f55f0c06a0fb30ce993f478b299fbedb7315b009dc72c57ad761bcb2",
+    "queue_digest": "b8f86d63b902e7019f3e1331ec01a629c7d7646d984f6b9c04d9f0336be738f6",
     "summary": {
-      "schema_version": "acl-resolve-v1",
-      "expanded_binding_count": 39009,
-      "principal_count": 3899,
-      "resource_node_count": 42000,
-      "role_count": 16,
-      "resolved_decision_count": 493086,
-      "allow_decision_count": 211881,
-      "deny_decision_count": 281205,
-      "contested_decision_count": 106246,
+      "allow_decision_count": 185078,
       "basis_counts": {
-        "direct_grant": 44373,
-        "propagated_deny": 228183,
-        "role_inheritance": 153393,
-        "scoped_wildcard": 67137
+        "direct_grant": 41343,
+        "duty_conflict": 26803,
+        "propagated_deny": 228179,
+        "role_inheritance": 133005,
+        "scoped_wildcard": 63752
       },
+      "contested_decision_count": 106245,
+      "deny_decision_count": 308004,
+      "expanded_binding_count": 39009,
+      "max_contest_count": 3,
+      "max_effective_principals": 169,
+      "max_escalation_index": 83991,
+      "max_risk_score": 83990,
+      "max_suppressed_descendants": 41991,
+      "principal_count": 3899,
+      "queued_decision_count": 11540,
+      "resolved_decision_count": 493082,
+      "resource_node_count": 42000,
+      "revoked_conflict_count": 26803,
+      "role_count": 16,
+      "schema_version": "acl-resolve-v1",
       "tier_counts": {
         "critical": 4355,
         "elevated": 6195,
         "routine": 990
       },
-      "total_risk_score": 6946498,
-      "total_escalation_index": 10383482,
-      "total_suppressed_descendants": 971247,
-      "queued_decision_count": 11540,
-      "max_effective_principals": 169,
-      "max_risk_score": 83990,
-      "max_escalation_index": 83991,
-      "max_contest_count": 3,
-      "max_suppressed_descendants": 41991
-    },
-    "decisions_digest": "e97f5f8cffe4adc7c2e8c408ba783f6aac09001869520e006a9ca206d8e329c9",
-    "queue_digest": "019a4a3aeadafcad2dcd426a7d520bdfa66e95e156d3ec24a5ff0355e0711a3b",
-    "queue_count": 11540
+      "total_escalation_index": 10383404,
+      "total_risk_score": 6946441,
+      "total_suppressed_descendants": 971241
+    }
   },
-  "nested_only_principal": "u-00760",
+  "broken_evaluator_sha256": "7b0a128b08da3a75ddd1662d1192051867829ea2997fb30c725e00e1242e1ea7",
   "decision_flip": {
-    "principal": "u-00727",
+    "correct_effect": "allow",
     "node": "/n00007/n00020/n00084/n00383/n01733/n07780",
     "permission": "delete",
-    "correct_effect": "allow",
+    "principal": "u-00727",
     "shallow_effect": "deny"
   },
-  "broken_evaluator_sha256": "7b0a128b08da3a75ddd1662d1192051867829ea2997fb30c725e00e1242e1ea7"
+  "directory_export_digest": "919fe0f2dd01140b0bbb32b4e64f3ef50d44a4ed4a86d5be189ffae3cd48d17b",
+  "expanded_count": 38999,
+  "expanded_digest": "2af5a640fdfc2633acb7754be72c486f7da93e787eb59dc28733d805307bb46f",
+  "nested_only_principal": "u-00760",
+  "primary": {
+    "decisions_digest": "1fcc0941a581fc12551d93b46b3ab5a30248535a06974442b95bd98c43d32878",
+    "queue_count": 11537,
+    "queue_digest": "2dec9ac2f962befbe08a01c1b0f61482fb3c732853d82d20c50bc7046868450d",
+    "summary": {
+      "allow_decision_count": 183070,
+      "basis_counts": {
+        "direct_grant": 42054,
+        "duty_conflict": 28068,
+        "propagated_deny": 187909,
+        "role_inheritance": 133932,
+        "scoped_wildcard": 57921
+      },
+      "contested_decision_count": 109331,
+      "deny_decision_count": 266814,
+      "expanded_binding_count": 38999,
+      "max_contest_count": 5,
+      "max_effective_principals": 133,
+      "max_escalation_index": 83982,
+      "max_risk_score": 83982,
+      "max_suppressed_descendants": 41986,
+      "principal_count": 3891,
+      "queued_decision_count": 11537,
+      "resolved_decision_count": 449884,
+      "resource_node_count": 42000,
+      "revoked_conflict_count": 28068,
+      "role_count": 16,
+      "schema_version": "acl-resolve-v1",
+      "tier_counts": {
+        "critical": 3854,
+        "elevated": 6727,
+        "routine": 956
+      },
+      "total_escalation_index": 9188959,
+      "total_risk_score": 6042963,
+      "total_suppressed_descendants": 666121
+    }
+  },
+  "role_bindings_digest": "a6f2649b6a4c2513b2e967588118b36f8e41a265f36a0fe2bc13a2bdd7e1dd4d"
 }

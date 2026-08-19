@@ -1,0 +1,23 @@
+[
+  {
+    "conflict_id": "SOD-01",
+    "permissions": [
+      "delete",
+      "deploy"
+    ]
+  },
+  {
+    "conflict_id": "SOD-02",
+    "permissions": [
+      "export",
+      "rotate"
+    ]
+  },
+  {
+    "conflict_id": "SOD-03",
+    "permissions": [
+      "admin",
+      "write"
+    ]
+  }
+]
